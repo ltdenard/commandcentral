@@ -98,7 +98,6 @@ def rootpasswdchange(root_pass_change_list):
                         return
                     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("cp /etc/shadow.new /etc/shadow")
                     if ssh_stdout.channel.recv_exit_status() != 0:
-                        print "failed change: %s" % server
                         with open(filename, "a") as f:
                             f.write("failed change: %s\n" % server)
                         return
@@ -150,6 +149,7 @@ def rootpasswdchange(root_pass_change_list):
     with open(root_pass_change_list) as f:
         serverlist = f.read().splitlines()
     main(serverlist)
+    return filename
 
 
 # check for a user on boxes
@@ -198,12 +198,13 @@ def usercheck(userid,userid_check_serverlist):
                     r = [re.sub(' +',' ',x.strip()) for x in r]
                     with open(filename, "a") as f:
                         f.write("success : %s : %s\n" % (server, r))
+                    return
                 else:
                     r = ssh_stdout.read().splitlines()
                     r = [re.sub(' +',' ',x.strip()) for x in r]
                     with open(filename, "a") as f:
                         f.write("failed : %s : user does not exist\n" % server)
-                return
+                    return
             except (paramiko.ssh_exception.SSHException):
                 with open(filename, "a") as f:
                     f.write("authenication failed: %s\n" % server)
@@ -240,6 +241,7 @@ def usercheck(userid,userid_check_serverlist):
     with open(userid_check_serverlist) as f:
         serverlist = f.read().splitlines()
     main(serverlist)
+    return filename
 
 
 # used to lock local accounts in bulk
@@ -290,27 +292,34 @@ def lockuseraccount(userid,userid_lock_serverlist):
                     if not r:
                         with open(filename, "a") as f:
                             f.write("failed: %s\n" % server)
+                        return
                     else:
                         locklocalaccount = "passwd -l %s" % arg1
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(locklocalaccount)
                         if ssh_stdout.channel.recv_exit_status()==0:
                             with open(filename, "a") as f:
                                 f.write("success: %s\n" % server)
+                            return
                         else:
                             with open(filename, "a") as f:
                                 f.write("failed: %s\n" % server)
+                            return
                 else:
                     with open(filename, "a") as f:
                         f.write("id not found: %s\n" % server)
+                    return
             except (paramiko.ssh_exception.SSHException):
                 with open(filename, "a") as f:
                     f.write("authenication failed: %s\n" % server)
+                return
             except socket.error as e:
                 with open(filename, "a") as f:
                     f.write("ssh timed out: %s\n" % server)
+                return
             except Exception as e:
                 with open(filename, "a") as f:
                     f.write("error occured: %s\n" % server)
+                return
 
     # main function
     def main(server):
@@ -326,26 +335,15 @@ def lockuseraccount(userid,userid_lock_serverlist):
 
     today = datetime.datetime.today()
     filedate = datetime.datetime.today().strftime('%Y-%m-%d-%s')
-    print ""
-    print "You want to lock username: %s" % userid
-    print ""
-    confirmation = raw_input("Is this information correct? (yes/no): ")
-    if confirmation.lower()=='yes':
-        print ""
-        print "Locking user accounts for %s..." % userid
-        print ""
-        filename = logfolder + "account_locking" + userid + "_" + filedate + "_log.txt"
-        try:
-            os.remove(filename)
-        except OSError:
-            pass
-        with open(userid_lock_serverlist) as f:
-            serverlist = f.read().splitlines()
-        main(serverlist)
-    else:
-        print ""
-        print "Re-run the script with the correct username." 
-        print ""
+    filename = logfolder + "account_locking" + userid + "_" + filedate + "_log.txt"
+    try:
+        os.remove(filename)
+    except OSError:
+        pass
+    with open(userid_lock_serverlist) as f:
+        serverlist = f.read().splitlines()
+    main(serverlist)
+    return filename
 
 
 # enable snmp version 3
@@ -414,7 +412,6 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
                         # make sure snmp is installed
                         # ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("yum -y install net-snmp net-snmp-utils net-snmp-devel")
                         # if ssh_stdout.channel.recv_exit_status() != 0:
-                        #    print "failed change: %s" % server
                         #    with open(filename, "a") as f:
                         #        f.write("failed change: %s\n" % server)
                         #    return
@@ -673,7 +670,7 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
     with open(snmp_setup_serverlist) as f:
         serverlist = f.read().splitlines()
     main(serverlist)
-
+    return filename
 
 # health check for authenication. check /etc/nsswitch.conf for sss then issues
 # and id for and ipa user. checks /etc/passwd for admin netgroup
@@ -945,7 +942,7 @@ def healthcheckmount(health_check_mount_serverlist):
     with open(health_check_mount_serverlist) as f:
         serverlist = f.read().splitlines()
     main(serverlist)
-
+    return filename
 
 # function to pull machine hostnames
 def pullhostname(pull_hostname_serverlist):
@@ -993,15 +990,19 @@ def pullhostname(pull_hostname_serverlist):
                 r = [re.sub(' +',' ',x.strip()) for x in r]
                 with open(filename, "a") as f:
                     f.write("%s,%s\n" % (server,r))
+                return
             except (paramiko.ssh_exception.SSHException):
                 with open(filename, "a") as f:
                     f.write("%s,authentication failed\n" % server)
+                return
             except socket.error as e:
                 with open(filename, "a") as f:
                     f.write("%s,ssh timed out\n" % server)
+                return
             except Exception as e:
                 with open(filename, "a") as f:
                     f.write("%s,error occured\n" % server)
+                return
 
     # main function
     def main(server):
@@ -1028,6 +1029,7 @@ def pullhostname(pull_hostname_serverlist):
     with open(pull_hostname_serverlist) as f:
         serverlist = f.read().splitlines()
     main(serverlist)
+    return filename
 
 
 # audit ssh keys. This pulls all ssh keys for user it's ran for 
@@ -1079,20 +1081,25 @@ def pullsshkeys(pull_ssh_keys_serverlist):
                         f.write("success: %s\n" % server)
                     for key in r:
                         keys.append(key)
+                    return
                 else:
                     r = ssh_stdout.read().splitlines()
                     r = [re.sub(' +',' ',x.strip()) for x in r]
                     with open(filename, "a") as f:
                         f.write("failed: %s\n" % server)
+                    return
             except (paramiko.ssh_exception.SSHException):
                 with open(filename, "a") as f:
                     f.write("authentication failed: %s\n" % server)
+                return
             except socket.error as e:
                 with open(filename, "a") as f:
                     f.write("ssh timed out: %s" % server)
+                return
             except Exception as e:
                 with open(filename, "a") as f:
                     f.write("error occured: %s\n" % server)
+                return
 
     # main function
     def main(server):
@@ -1121,6 +1128,7 @@ def pullsshkeys(pull_ssh_keys_serverlist):
     with open(logfolder + "keys_on_gear_" + filedate + ".txt", 'w') as f:
         for l in keylist:
             f.write(l + '\n')
+    return logfolder + "keys_on_gear_" + filedate + ".txt"
 
 
 # push ssh keys for a user
@@ -1160,7 +1168,7 @@ def pushsshkeys(keys,keys_serverlist):
         def deploy_key(self, server):
             runlog = logfolder + "ssh_key_deploy_debug_log.txt"
             paramiko.util.log_to_file(runlog)
-            if server.lower() in whitelist:
+            if any(server_ignore in server.lower() for server_ignore in push_ssh_key_whitelist):
                 with open(filename, "a") as f:
                     f.write("whitelisted: %s\n" % server)
                 return
@@ -1177,17 +1185,24 @@ def pushsshkeys(keys,keys_serverlist):
                         ssh.exec_command('echo "%s" >> ~/.ssh/authorized_keys' % key.strip())
                         ssh.exec_command('chmod 644 ~/.ssh/authorized_keys')
                         ssh.exec_command('chmod 700 ~/.ssh/')
+                        ssh.exec_command('restorecon -Rv ~/.ssh/')
+                        with open(filename, "a") as f:
+                            f.write("added key: %s\n" % server)
                 with open(filename, "a") as f:
                     f.write("success: %s\n" % server)
+                return
             except (paramiko.ssh_exception.SSHException):
                 with open(filename, "a") as f:
                     f.write("authentication failed: %s\n" % server)
+                return
             except socket.error as e:
                 with open(filename, "a") as f:
                     f.write("ssh timed out: %s\n" % server)
+                return
             except Exception as e:
                 with open(filename, "a") as f:
                     f.write("error occured: %s\n" % server)
+                return
 
     # main function
     def main(server):
@@ -1263,15 +1278,19 @@ def yumcheckconf(yum_exclude_check_serverlist):
                 r = [re.sub(' +',' ',x.strip()) for x in r]
                 with open(filename, "a") as f:
                     f.write("%s,%s\n" % (server,r))
+                return
             except (paramiko.ssh_exception.SSHException):
                 with open(filename, "a") as f:
                     f.write("%s,authentication failed\n" % server)
+                return
             except socket.error as e:
                 with open(filename, "a") as f:
                     f.write("%s,ssh timed out\n" % server)
+                return
             except Exception as e:
                 with open(filename, "a") as f:
                     f.write("%s,error occured\n" % server)
+                return
 
     # main function
     def main(server):
@@ -1299,6 +1318,7 @@ def yumcheckconf(yum_exclude_check_serverlist):
     with open(yum_exclude_check_serverlist) as f:
         serverlist = f.read().splitlines()
     main(serverlist)
+    return yum_exclude_check_serverlist
 
 
 
@@ -1416,6 +1436,7 @@ def itop_pull(serverlistfilename):
             f.write(server + '\n')
     # remove files not needed
     subprocess.call(["rm", "-rf", tmpfolder + "itop_export.html", tmpfolder + "itop_export.csv", tmpfolder + "cookies.txt"])
+    return serverlistfilename
 
 
 
@@ -1532,6 +1553,7 @@ def disableftpanon(disable_ftp_anon_serverlist):
                     with open(filename, "a") as f:
                         f.write("requires manual change: %s\n" % server)
                     return
+
             except (paramiko.ssh_exception.SSHException):
                 with open(filename, "a") as f:
                     f.write("authentication failed: %s\n" % server)
@@ -1565,7 +1587,7 @@ def disableftpanon(disable_ftp_anon_serverlist):
     with open(disable_ftp_anon_serverlist) as f:
         serverlist = f.read().splitlines()
     main(serverlist)
-
+    return disable_ftp_anon_serverlist
 
 # disable anonymous ftp and ftp/ftp account then disable ftp altogether
 def disableftp(disable_ftp_serverlist):
@@ -1704,7 +1726,7 @@ def disableftp(disable_ftp_serverlist):
                         with open(filename, "a") as f:
                             f.write("failed change: %s\n" % server)
                         return
-
+                            
                     with open(filename, "a") as f:
                         f.write("success: %s\n" % server)
                     return
@@ -1716,7 +1738,7 @@ def disableftp(disable_ftp_serverlist):
                     if ssh_stdout.channel.recv_exit_status() != 0:
                         with open(filename, "a") as f:
                             f.write("failed change: %s\n" % server)
-
+                            
                     with open(filename, "a") as f:
                         f.write("success: %s\n" % server)
                     return
@@ -1758,6 +1780,7 @@ def disableftp(disable_ftp_serverlist):
     with open(disable_ftp_serverlist) as f:
         serverlist = f.read().splitlines()
     main(serverlist)
+    return disable_ftp_serverlist
 
 
 # disables telnet 
@@ -1839,7 +1862,7 @@ def disabletelnet(disable_telnet_serverlist):
                         if ssh_stdout.channel.recv_exit_status() != 0:
                             with open(filename, "a") as f:
                                 f.write("failed change: %s\n" % server)
-
+                                
                         with open(filename, "a") as f:
                             f.write("success: %s\n" % server)
                         return
@@ -1883,7 +1906,7 @@ def disabletelnet(disable_telnet_serverlist):
                         with open(filename, "a") as f:
                             f.write("failed change: %s\n" % server)
                         return
-
+                            
                     with open(filename, "a") as f:
                         f.write("success: %s\n" % server)
                     return
@@ -1895,7 +1918,7 @@ def disabletelnet(disable_telnet_serverlist):
                     if ssh_stdout.channel.recv_exit_status() != 0:
                         with open(filename, "a") as f:
                             f.write("failed change: %s\n" % server)
-
+                            
                     with open(filename, "a") as f:
                         f.write("success: %s\n" % server)
                     return
@@ -1937,3 +1960,4 @@ def disabletelnet(disable_telnet_serverlist):
     with open(disable_ftp_serverlist) as f:
         serverlist = f.read().splitlines()
     main(serverlist)
+    return disable_ftp_serverlist
