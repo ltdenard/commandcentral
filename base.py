@@ -36,9 +36,7 @@ def rootpasswdchange(root_pass_change_list):
                 self.queue.task_done()
 
         def changeroot(self,server):
-            print "starting %s" % server
             if server.lower() in whitelist:
-                print "requires manual change: %s" % server
                 with open(filename, "a") as f:
                     f.write("requires manual change: %s\n" % server)
                 return
@@ -55,28 +53,23 @@ def rootpasswdchange(root_pass_change_list):
                     release_version = ssh_stdout.read().splitlines()
                     release_version = [re.sub(' +',' ',x.strip()) for x in release_version]
                     if any("Ubuntu" in s for s in release_version) or any("debian" in s for s in release_version):
-                        print "requires manual change: %s" % server
                         with open(filename, "a") as f:
                             f.write("requires manual change: %s\n" % server)
                         return
                     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(linuxcommand)
                     if ssh_stdout.channel.recv_exit_status() != 0:
-                        print "failed change: %s" % server
                         with open(filename, "a") as f:
                             f.write("failed change: %s\n" % server)
                         return
-                    print "success: %s" % server
                     with open(filename, "a") as f:
                         f.write("success: %s\n" % server)
                     return
                 if "AIX" in uname:
                     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(aixcommand)
                     if ssh_stdout.channel.recv_exit_status() != 0:
-                        print "failed change: %s" % server
                         with open(filename, "a") as f:
                             f.write("failed change: %s\n" % server)
                         return
-                    print "success: %s" % server
                     with open(filename, "a") as f:
                         f.write("success: %s\n" % server)
                     return
@@ -94,14 +87,12 @@ def rootpasswdchange(root_pass_change_list):
                     newshadowline = "%s:%s:%s:%s:%s:%s:%s:%s:%s" % (shadowarray[0],passwordhash,days,shadowarray[3],maxage,shadowarray[5],shadowarray[6],shadowarray[7],shadowarray[8])
                     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("cp /etc/shadow /etc/shadow.bak")
                     if ssh_stdout.channel.recv_exit_status() != 0:
-                        print "failed change: %s" % server
                         with open(filename, "a") as f:
                             f.write("failed change: %s\n" % server)
                         return
                     sedcommand = "sed 's|%s|%s|g' /etc/shadow > /etc/shadow.new" % (r[0],newshadowline)
                     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(sedcommand)
                     if ssh_stdout.channel.recv_exit_status() != 0:
-                        print "failed change: %s" % server
                         with open(filename, "a") as f:
                             f.write("failed change: %s\n" % server)
                         return
@@ -111,27 +102,22 @@ def rootpasswdchange(root_pass_change_list):
                         with open(filename, "a") as f:
                             f.write("failed change: %s\n" % server)
                         return
-                    print "success: %s" % server
                     with open(filename, "a") as f:
                         f.write("success: %s\n" % server)
                     return
                 if ("Linux" or "AIX" or "SunOS") not in uname:
-                    print "requires manual change: %s" % server
                     with open(filename, "a") as f:
                         f.write("requires manual change: %s\n" % server)
                     return
             except (paramiko.ssh_exception.SSHException):
-                print "authentication failed: %s" % server
                 with open(filename, "a") as f:
                     f.write("authentication failed: %s\n" % server)
                 return
             except socket.error as e:
-                print "ssh timed out: %s" % server
                 with open(filename, "a") as f:
                     f.write("ssh timed out: %s\n" % server)
                 return
             except Exception as e:
-                print "error occured: %s" % server
                 with open(filename, "a") as f:
                     f.write("error occured: %s\n" % server)
                 return
@@ -200,7 +186,6 @@ def usercheck(userid,userid_check_serverlist):
                 self.queue.task_done()
 
         def usercheck(self, server):
-            print "starting: %s" % server
             runlog = logfolder + "usercheck_debug_log.txt"
             paramiko.util.log_to_file(runlog)
             try:
@@ -213,25 +198,24 @@ def usercheck(userid,userid_check_serverlist):
                     r = [re.sub(' +',' ',x.strip()) for x in r]
                     with open(filename, "a") as f:
                         f.write("success : %s : %s\n" % (server, r))
-                    print "success: %s" % server
                 else:
                     r = ssh_stdout.read().splitlines()
                     r = [re.sub(' +',' ',x.strip()) for x in r]
                     with open(filename, "a") as f:
                         f.write("failed : %s : user does not exist\n" % server)
-                    print "failed: %s" % server
+                return
             except (paramiko.ssh_exception.SSHException):
                 with open(filename, "a") as f:
                     f.write("authenication failed: %s\n" % server)
-                print "authenication failed: %s" % server
+                return
             except socket.error as e:
                 with open(filename, "a") as f:
                     f.write("ssh timed out: %s" % server)
-                print "ssh timed out: %s\n" % server
+                return
             except Exception as e:
                 with open(filename, "a") as f:
                     f.write("error occured: %s\n" % server)
-                print "error occured: %s" % server
+                return
 
     # main function
     def main(server):
@@ -292,7 +276,6 @@ def lockuseraccount(userid,userid_lock_serverlist):
                 self.queue.task_done()
 
         def lockuseraccounts(self, server):
-            print "starting: %s" % server
             runlog = logfolder + "account_locking_debug_log.txt"
             paramiko.util.log_to_file(runlog)
             checkpasswdfile = "grep ^%s: /etc/passwd" % arg1
@@ -307,34 +290,27 @@ def lockuseraccount(userid,userid_lock_serverlist):
                     if not r:
                         with open(filename, "a") as f:
                             f.write("failed: %s\n" % server)
-                        print "failed: %s" % server
                     else:
                         locklocalaccount = "passwd -l %s" % arg1
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(locklocalaccount)
                         if ssh_stdout.channel.recv_exit_status()==0:
                             with open(filename, "a") as f:
                                 f.write("success: %s\n" % server)
-                            print "success: %s" % server
                         else:
                             with open(filename, "a") as f:
                                 f.write("failed: %s\n" % server)
-                            print "failed: %s" % server
                 else:
                     with open(filename, "a") as f:
                         f.write("id not found: %s\n" % server)
-                    print "id not found: %s" % server
             except (paramiko.ssh_exception.SSHException):
                 with open(filename, "a") as f:
                     f.write("authenication failed: %s\n" % server)
-                print "authenication failed: %s" % server
             except socket.error as e:
                 with open(filename, "a") as f:
                     f.write("ssh timed out: %s\n" % server)
-                print "ssh timed out: %s\n" % server
             except Exception as e:
                 with open(filename, "a") as f:
                     f.write("error occured: %s\n" % server)
-                print "error occured: %s" % server
 
     # main function
     def main(server):
@@ -409,9 +385,7 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
                 self.queue.task_done()
 
         def enablesnmp(self,server):
-            print "starting %s" % server
             if server.lower() in whitelist:
-                print "whitelisted: %s" % server
                 with open(filename, "a") as f:
                     f.write("whitelisted: %s\n" % server)
                 return
@@ -429,7 +403,6 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
                     release_version = ssh_stdout.read().splitlines()
                     release_version = [re.sub(' +',' ',x.strip()) for x in release_version]
                     if any("Ubuntu" in s for s in release_version) or any("debian" in s for s in release_version):
-                        print "requires manual change: %s" % server
                         with open(filename, "a") as f:
                             f.write("requires manual change: %s\n" % server)
                         return
@@ -453,7 +426,6 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
                         # stop snmp
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("service snmpd stop")
                         if ssh_stdout.channel.recv_exit_status() != 0:
-                            print "failed change: %s" % server
                             with open(filename, "a") as f:
                                 f.write("failed change: %s\n" % server)
                             return
@@ -462,7 +434,6 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
                         snmp_ro_command = "echo 'rouser %s' > /etc/snmp/snmpd.conf" % snmpuser
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(snmp_ro_command)
                         if ssh_stdout.channel.recv_exit_status() != 0:
-                            print "failed change: %s" % server
                             with open(filename, "a") as f:
                                 f.write("failed change: %s\n" % server)
                             return
@@ -470,7 +441,6 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
                         snmp_create_user = "echo 'createUser %s MD5 \"%s\" DES' >> /var/lib/net-snmp/snmpd.conf" % (snmpuser,snmppass)
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(snmp_create_user)
                         if ssh_stdout.channel.recv_exit_status() != 0:
-                            print "failed change: %s" % server
                             with open(filename, "a") as f:
                                 f.write("failed change: %s\n" % server)
                             return
@@ -478,7 +448,6 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
                         # sleep before starting snmp
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("sleep 1")
                         if ssh_stdout.channel.recv_exit_status() != 0:
-                            print "failed change: %s" % server
                             with open(filename, "a") as f:
                                 f.write("failed change: %s\n" % server)
                             return
@@ -486,7 +455,6 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
                         # start snmp
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("service snmpd start")
                         if ssh_stdout.channel.recv_exit_status() != 0:
-                            print "failed change: %s" % server
                             with open(filename, "a") as f:
                                 f.write("failed change: %s\n" % server)
                             return
@@ -494,19 +462,16 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
                         # set snmp to start on boot
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("chkconfig snmpd on")
                         if ssh_stdout.channel.recv_exit_status() != 0:
-                            print "failed change: %s" % server
                             with open(filename, "a") as f:
                                 f.write("failed change: %s\n" % server)
                             return
                         
-                        print "success: %s" % server
                         with open(filename, "a") as f:
                             f.write("success: %s\n" % server)
                         return
 
                     # else catch all here
                     else:
-                        print "requires manual change: %s" % server
                         with open(filename, "a") as f:
                             f.write("requires manual change: %s\n" % server)
                         return
@@ -519,7 +484,6 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
                     oslevel = ssh_stdout.read().splitlines()
                     oslevel = [re.sub(' +',' ',x.strip()) for x in oslevel]
                     if any("4.3.3.0" in s for s in oslevel):
-                        print "requires manual change: %s" % server
                         with open(filename, "a") as f:
                             f.write("requires manual change: %s\n" % server)
                         return
@@ -536,7 +500,6 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
                     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(snmp_key_generation_command)
                     if ssh_stdout.channel.recv_exit_status() != 0:
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("startsrc -s snmpd")
-                        print "failed change: %s" % server
                         with open(filename, "a") as f:
                             f.write("failed change: %s\n" % server)
                         return
@@ -544,7 +507,6 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
                     authkey = [re.sub(' +',' ',x.strip()) for x in authkey][0]
                     if len(authkey) < 32:
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("startsrc -s snmpd")
-                        print "failed change: %s" % server
                         with open(filename, "a") as f:
                             f.write("failed change: %s\n" % server)
                         return
@@ -563,12 +525,10 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
                     # stop and start snmp
                     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("startsrc -s snmpd")
                     if ssh_stdout.channel.recv_exit_status() != 0:
-                        print "failed change: %s" % server
                         with open(filename, "a") as f:
                             f.write("failed change: %s\n" % server)
                         return
 
-                    print "success: %s" % server
                     with open(filename, "a") as f:
                         f.write("success: %s\n" % server)
                     return
@@ -582,7 +542,6 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
                         # stop snmp
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("svcadm disable -t svc:/application/management/net-snmp:default")
                         if ssh_stdout.channel.recv_exit_status() != 0:
-                            print "failed change: %s" % server
                             with open(filename, "a") as f:
                                 f.write("failed change: %s\n" % server)
                             return
@@ -591,7 +550,6 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
                         config_backup = "cp /etc/net-snmp/snmp/snmpd.conf  /etc/net-snmp/snmp/snmpd.conf." + today
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(config_backup)
                         if ssh_stdout.channel.recv_exit_status() != 0:
-                            print "failed change: %s" % server
                             with open(filename, "a") as f:
                                 f.write("failed change: %s\n" % server)
                             return
@@ -599,7 +557,6 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
                         # sleep to wait for process to stop
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("sleep 1")
                         if ssh_stdout.channel.recv_exit_status() != 0:
-                            print "failed change: %s" % server
                             with open(filename, "a") as f:
                                 f.write("failed change: %s\n" % server)
                             return
@@ -608,7 +565,6 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
                         snmp_ro_command = "echo 'rouser %s' > /etc/sma/snmp/snmpd.conf" % snmpuser
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(snmp_ro_command)
                         if ssh_stdout.channel.recv_exit_status() != 0:
-                            print "failed change: %s" % server
                             with open(filename, "a") as f:
                                 f.write("failed change: %s\n" % server)
                             return
@@ -616,7 +572,6 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
                         snmp_user_command = "echo 'createUser %s MD5 \"%s\" DES' >> /var/sma_snmp/snmpd.conf" % (snmpuser,snmppass)
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(snmp_user_command)
                         if ssh_stdout.channel.recv_exit_status() != 0:
-                            print "failed change: %s" % server
                             with open(filename, "a") as f:
                                 f.write("failed change: %s\n" % server)
                             return
@@ -624,7 +579,6 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
                         # start snmp
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("svcadm enable svc:/application/management/net-snmp:default")
                         if ssh_stdout.channel.recv_exit_status() != 0:
-                            print "failed change: %s" % server
                             with open(filename, "a") as f:
                                 f.write("failed change: %s\n" % server)
                             return    
@@ -635,7 +589,6 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
                         # stop snmp
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("svcadm disable -t svc:/application/management/net-snmp:default")
                         if ssh_stdout.channel.recv_exit_status() != 0:
-                            print "failed change: %s" % server
                             with open(filename, "a") as f:
                                 f.write("failed change: %s\n" % server)
                             return
@@ -644,7 +597,6 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
                         config_backup = "cp /etc/net-snmp/snmp/snmpd.conf  /etc/net-snmp/snmp/snmpd.conf." + today
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(config_backup)
                         if ssh_stdout.channel.recv_exit_status() != 0:
-                            print "failed change: %s" % server
                             with open(filename, "a") as f:
                                 f.write("failed change: %s\n" % server)
                             return
@@ -652,7 +604,6 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
                         # sleep to wait for process to stop
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("sleep 1")
                         if ssh_stdout.channel.recv_exit_status() != 0:
-                            print "failed change: %s" % server
                             with open(filename, "a") as f:
                                 f.write("failed change: %s\n" % server)
                             return
@@ -661,7 +612,6 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
                         snmp_ro_command = "echo 'rouser %s' > /etc/sma/snmp/snmpd.conf" % snmpuser
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(snmp_ro_command)
                         if ssh_stdout.channel.recv_exit_status() != 0:
-                            print "failed change: %s" % server
                             with open(filename, "a") as f:
                                 f.write("failed change: %s\n" % server)
                             return
@@ -669,7 +619,6 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
                         snmp_user_command = "echo 'createUser %s MD5 \"%s\" DES' >> /var/sma_snmp/snmpd.conf" % (snmpuser,snmppass)
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(snmp_user_command)
                         if ssh_stdout.channel.recv_exit_status() != 0:
-                            print "failed change: %s" % server
                             with open(filename, "a") as f:
                                 f.write("failed change: %s\n" % server)
                             return
@@ -677,34 +626,28 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
                         # start snmp
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("svcadm enable svc:/application/management/net-snmp:default")
                         if ssh_stdout.channel.recv_exit_status() != 0:
-                            print "failed change: %s" % server
                             with open(filename, "a") as f:
                                 f.write("failed change: %s\n" % server)
                             return   
 
-                    print "success: %s" % server
                     with open(filename, "a") as f:
                         f.write("success: %s\n" % server)
                     return
 
 
                 if ("Linux" or "AIX" or "SunOS") not in uname:
-                    print "requires manual change: %s" % server
                     with open(filename, "a") as f:
                         f.write("requires manual change: %s\n" % server)
                     return
             except (paramiko.ssh_exception.SSHException):
-                print "authentication failed: %s" % server
                 with open(filename, "a") as f:
                     f.write("authentication failed: %s\n" % server)
                 return
             except socket.error as e:
-                print "ssh timed out: %s" % server
                 with open(filename, "a") as f:
                     f.write("ssh timed out: %s\n" % server)
                 return
             except Exception as e:
-                print "error occured: %s" % server
                 with open(filename, "a") as f:
                     f.write("error occured: %s\n" % server)
                 return
@@ -940,9 +883,7 @@ def healthcheckmount(health_check_mount_serverlist):
                 self.queue.task_done()
 
         def healthcheck(self,server):
-            print "starting %s" % server
             if server.lower() in whitelist:
-                print "whitelisted: %s" % server
                 with open(filename, "a") as f:
                     f.write("whitelisted: %s\n" % server)
                 return
@@ -962,28 +903,23 @@ def healthcheckmount(health_check_mount_serverlist):
                 older_file = min(glob.iglob(mountlogsfolder + server_name + "*" + ".txt"), key=os.path.getctime)
                 mount_status = filecmp.cmp(older_file, mount_log_filename)          
                 if mount_status:
-                    print "okay: %s" % server
                     with open(filename, "a") as f:
                         f.write("okay: %s\n" % server)
                     return
                 else:
-                    print "mount missing: %s" % server
                     with open(filename, "a") as f:
                         f.write("mount missing: %s\n" % server)
                     return
 
             except (paramiko.ssh_exception.SSHException):
-                print "authentication failed: %s" % server
                 with open(filename, "a") as f:
                     f.write("authentication failed: %s\n" % server)
                 return
             except socket.error as e:
-                print "ssh timed out: %s" % server
                 with open(filename, "a") as f:
                     f.write("ssh timed out: %s\n" % server)
                 return
             except Exception as e:
-                print "error occured: %s" % server
                 with open(filename, "a") as f:
                     f.write("error occured: %s\n" % server)
                 return
@@ -1046,7 +982,6 @@ def pullhostname(pull_hostname_serverlist):
                 self.queue.task_done()
 
         def get_hostname(self, server):
-            print "starting: %s" % server
             runlog = logfolder + "hostname_pull_debug_log.txt"
             paramiko.util.log_to_file(runlog)
             try:
@@ -1056,19 +991,15 @@ def pullhostname(pull_hostname_serverlist):
                 ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command('hostname')
                 r = ssh_stdout.read().splitlines()
                 r = [re.sub(' +',' ',x.strip()) for x in r]
-                print "success: %s" % server
                 with open(filename, "a") as f:
                     f.write("%s,%s\n" % (server,r))
             except (paramiko.ssh_exception.SSHException):
-                print "authentication failed: %s" % server
                 with open(filename, "a") as f:
                     f.write("%s,authentication failed\n" % server)
             except socket.error as e:
-                print "ssh timed out: %s" % server
                 with open(filename, "a") as f:
                     f.write("%s,ssh timed out\n" % server)
             except Exception as e:
-                print "error occured: %s" % server
                 with open(filename, "a") as f:
                     f.write("%s,error occured\n" % server)
 
@@ -1134,7 +1065,6 @@ def pullsshkeys(pull_ssh_keys_serverlist):
                 self.queue.task_done()
 
         def pull_key(self, server):
-            print "starting: %s" % server
             runlog = logfolder + "ssh_key_pull_debug_log.txt"
             paramiko.util.log_to_file(runlog)
             try:
@@ -1147,7 +1077,6 @@ def pullsshkeys(pull_ssh_keys_serverlist):
                     r = [re.sub(' +',' ',x.strip()) for x in r]
                     with open(filename, "a") as f:
                         f.write("success: %s\n" % server)
-                    print "success: %s" % server
                     for key in r:
                         keys.append(key)
                 else:
@@ -1155,19 +1084,15 @@ def pullsshkeys(pull_ssh_keys_serverlist):
                     r = [re.sub(' +',' ',x.strip()) for x in r]
                     with open(filename, "a") as f:
                         f.write("failed: %s\n" % server)
-                    print "failed: %s" % server
             except (paramiko.ssh_exception.SSHException):
                 with open(filename, "a") as f:
                     f.write("authentication failed: %s\n" % server)
-                print "authentication failed: %s" % server
             except socket.error as e:
                 with open(filename, "a") as f:
                     f.write("ssh timed out: %s" % server)
-                print "ssh timed out: %s\n" % server
             except Exception as e:
                 with open(filename, "a") as f:
                     f.write("error occured: %s\n" % server)
-                print "error occured: %s" % server
 
     # main function
     def main(server):
@@ -1233,11 +1158,9 @@ def pushsshkeys(keys,keys_serverlist):
                 self.queue.task_done()
 
         def deploy_key(self, server):
-            print "starting: %s" % server
             runlog = logfolder + "ssh_key_deploy_debug_log.txt"
             paramiko.util.log_to_file(runlog)
             if server.lower() in whitelist:
-                print "whitelisted: %s" % server
                 with open(filename, "a") as f:
                     f.write("whitelisted: %s\n" % server)
                 return
@@ -1254,19 +1177,15 @@ def pushsshkeys(keys,keys_serverlist):
                         ssh.exec_command('echo "%s" >> ~/.ssh/authorized_keys' % key.strip())
                         ssh.exec_command('chmod 644 ~/.ssh/authorized_keys')
                         ssh.exec_command('chmod 700 ~/.ssh/')
-                print "success: %s" % server
                 with open(filename, "a") as f:
                     f.write("success: %s\n" % server)
             except (paramiko.ssh_exception.SSHException):
-                print "authentication failed: %s" % server
                 with open(filename, "a") as f:
                     f.write("authentication failed: %s\n" % server)
             except socket.error as e:
-                print "ssh timed out: %s" % server
                 with open(filename, "a") as f:
                     f.write("ssh timed out: %s\n" % server)
             except Exception as e:
-                print "error occured: %s" % server
                 with open(filename, "a") as f:
                     f.write("error occured: %s\n" % server)
 
@@ -1333,7 +1252,6 @@ def yumcheckconf(yum_exclude_check_serverlist):
                 self.queue.task_done()
 
         def run_command(self, server):
-            print "starting: %s" % server
             runlog = logfolder + "yum_conf_check_debug_log.txt"
             paramiko.util.log_to_file(runlog)
             try:
@@ -1343,19 +1261,15 @@ def yumcheckconf(yum_exclude_check_serverlist):
                 ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(commandtorun)
                 r = ssh_stdout.read().splitlines()
                 r = [re.sub(' +',' ',x.strip()) for x in r]
-                print "success: %s" % server
                 with open(filename, "a") as f:
                     f.write("%s,%s\n" % (server,r))
             except (paramiko.ssh_exception.SSHException):
-                print "authentication failed: %s" % server
                 with open(filename, "a") as f:
                     f.write("%s,authentication failed\n" % server)
             except socket.error as e:
-                print "ssh timed out: %s" % server
                 with open(filename, "a") as f:
                     f.write("%s,ssh timed out\n" % server)
             except Exception as e:
-                print "error occured: %s" % server
                 with open(filename, "a") as f:
                     f.write("%s,error occured\n" % server)
 
@@ -1540,9 +1454,7 @@ def disableftpanon(disable_ftp_anon_serverlist):
                 self.queue.task_done()
 
         def disableftpanon(self,server):
-            print "starting %s" % server
             if server.lower() in whitelist:
-                print "whitelisted: %s" % server
                 with open(filename, "a") as f:
                     f.write("whitelisted: %s\n" % server)
                 return
@@ -1562,7 +1474,6 @@ def disableftpanon(disable_ftp_anon_serverlist):
                     release_version = ssh_stdout.read().splitlines()
                     release_version = [re.sub(' +',' ',x.strip()) for x in release_version]
                     if any("Ubuntu" in s for s in release_version) or any("debian" in s for s in release_version):
-                        print "requires manual change: %s" % server
                         with open(filename, "a") as f:
                             f.write("requires manual change: %s\n" % server)
                         return
@@ -1578,7 +1489,6 @@ def disableftpanon(disable_ftp_anon_serverlist):
                         # TODO: check for ftp user before adding
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("echo 'ftp' >> /etc/vsftpd/user_list")
                         if ssh_stdout.channel.recv_exit_status() != 0:
-                            print "failed change: %s" % server
                             with open(filename, "a") as f:
                                 f.write("failed change: %s\n" % server)
                             return
@@ -1586,7 +1496,6 @@ def disableftpanon(disable_ftp_anon_serverlist):
                         # make change to config
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("sed -i 's/.*nonymous_enable.*/anonymous_enable=NO/g' /etc/vsftpd/vsftpd.conf")
                         if ssh_stdout.channel.recv_exit_status() != 0:
-                            print "failed change: %s" % server
                             with open(filename, "a") as f:
                                 f.write("failed change: %s\n" % server)
                             return
@@ -1594,55 +1503,44 @@ def disableftpanon(disable_ftp_anon_serverlist):
                         # restart ssh
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("service vsftpd restart")
                         if ssh_stdout.channel.recv_exit_status() != 0:
-                            print "failed change: %s" % server
                             with open(filename, "a") as f:
                                 f.write("failed change: %s\n" % server)
                             return
 
-                        print "success: %s" % server
                         with open(filename, "a") as f:
                             f.write("success: %s\n" % server)
                         return
 
                     # else catch all here
                     else:
-                        print "requires manual change: %s" % server
                         with open(filename, "a") as f:
                             f.write("requires manual change: %s\n" % server)
                         return
 
 
                 if "AIX" in uname:
-
-                    print "requires manual change: %s" % server
                     with open(filename, "a") as f:
                         f.write("requires manual change: %s\n" % server)
                     return
 
                 if "SunOS" in uname:
-
-                    print "failed change: %s" % server
                     with open(filename, "a") as f:
                         f.write("requires manual change: %s\n" % server)
                     return
 
                 if ("Linux" or "AIX" or "SunOS") not in uname:
-                    print "requires manual change: %s" % server
                     with open(filename, "a") as f:
                         f.write("requires manual change: %s\n" % server)
                     return
             except (paramiko.ssh_exception.SSHException):
-                print "authentication failed: %s" % server
                 with open(filename, "a") as f:
                     f.write("authentication failed: %s\n" % server)
                 return
             except socket.error as e:
-                print "ssh timed out: %s" % server
                 with open(filename, "a") as f:
                     f.write("ssh timed out: %s\n" % server)
                 return
             except Exception as e:
-                print "error occured: %s" % server
                 with open(filename, "a") as f:
                     f.write("error occured: %s\n" % server)
                 return
@@ -1704,9 +1602,7 @@ def disableftp(disable_ftp_serverlist):
                 self.queue.task_done()
 
         def disableftp(self,server):
-            print "starting %s" % server
             if server.lower() in whitelist:
-                print "whitelisted: %s" % server
                 with open(filename, "a") as f:
                     f.write("whitelisted: %s\n" % server)
                 return
@@ -1725,7 +1621,6 @@ def disableftp(disable_ftp_serverlist):
                     release_version = ssh_stdout.read().splitlines()
                     release_version = [re.sub(' +',' ',x.strip()) for x in release_version]
                     if any("Ubuntu" in s for s in release_version) or any("debian" in s for s in release_version):
-                        print "requires manual change: %s" % server
                         with open(filename, "a") as f:
                             f.write("requires manual change: %s\n" % server)
                         return
@@ -1741,7 +1636,6 @@ def disableftp(disable_ftp_serverlist):
                         # TODO: check for ftp user before adding
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("echo 'ftp' >> /etc/vsftpd/user_list")
                         if ssh_stdout.channel.recv_exit_status() != 0:
-                            print "failed change: %s" % server
                             with open(filename, "a") as f:
                                 f.write("failed change: %s\n" % server)
                             return
@@ -1749,7 +1643,6 @@ def disableftp(disable_ftp_serverlist):
                         # make change to config
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("sed -i 's/.*nonymous_enable.*/anonymous_enable=NO/g' /etc/vsftpd/vsftpd.conf")
                         if ssh_stdout.channel.recv_exit_status() != 0:
-                            print "failed change: %s" % server
                             with open(filename, "a") as f:
                                 f.write("failed change: %s\n" % server)
                             return
@@ -1757,7 +1650,6 @@ def disableftp(disable_ftp_serverlist):
                         # stop ftp
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("service vsftpd stop")
                         if ssh_stdout.channel.recv_exit_status() != 0:
-                            print "failed change: %s" % server
                             with open(filename, "a") as f:
                                 f.write("failed change: %s\n" % server)
                             return
@@ -1765,19 +1657,16 @@ def disableftp(disable_ftp_serverlist):
                         # disable ftp on startup
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("chkconfig vsftpd off")
                         if ssh_stdout.channel.recv_exit_status() != 0:
-                            print "failed change: %s" % server
                             with open(filename, "a") as f:
                                 f.write("failed change: %s\n" % server)
                             return
 
-                        print "success: %s" % server
                         with open(filename, "a") as f:
                             f.write("success: %s\n" % server)
                         return
 
                     # else catch all here
                     else:
-                        print "requires manual change: %s" % server
                         with open(filename, "a") as f:
                             f.write("requires manual change: %s\n" % server)
                         return
@@ -1789,7 +1678,6 @@ def disableftp(disable_ftp_serverlist):
                     backup_command = "cp /etc/inetd.conf /etc/inetd.conf.old.%s" % today
                     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(backup_command)
                     if ssh_stdout.channel.recv_exit_status() != 0:
-                        print "failed change: %s" % server
                         with open(filename, "a") as f:
                             f.write("failed change: %s\n" % server)
                         return
@@ -1798,7 +1686,6 @@ def disableftp(disable_ftp_serverlist):
                     sed_command = "sed 's/^ftp/#ftp/g' /etc/inetd.conf > /etc/inetd.conf.new.%s" % today
                     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(sed_command)
                     if ssh_stdout.channel.recv_exit_status() != 0:
-                        print "failed change: %s" % server
                         with open(filename, "a") as f:
                             f.write("failed change: %s\n" % server)
                         return
@@ -1807,7 +1694,6 @@ def disableftp(disable_ftp_serverlist):
                     cp_command = "cp /etc/inetd.conf.new.%s /etc/inetd.conf" % today
                     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(cp_command)
                     if ssh_stdout.channel.recv_exit_status() != 0:
-                        print "failed change: %s" % server
                         with open(filename, "a") as f:
                             f.write("failed change: %s\n" % server)
                         return
@@ -1815,12 +1701,10 @@ def disableftp(disable_ftp_serverlist):
                     # restart xinetd 
                     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("refresh -s inetd")
                     if ssh_stdout.channel.recv_exit_status() != 0:
-                        print "failed change: %s" % server
                         with open(filename, "a") as f:
                             f.write("failed change: %s\n" % server)
                         return
-                            
-                    print "success: %s" % server
+
                     with open(filename, "a") as f:
                         f.write("success: %s\n" % server)
                     return
@@ -1830,32 +1714,26 @@ def disableftp(disable_ftp_serverlist):
                     # disable ftp
                     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("svcadm disable ftp")
                     if ssh_stdout.channel.recv_exit_status() != 0:
-                        print "failed change: %s" % server
                         with open(filename, "a") as f:
                             f.write("failed change: %s\n" % server)
-                            
-                    print "success: %s" % server
+
                     with open(filename, "a") as f:
                         f.write("success: %s\n" % server)
                     return
 
                 if ("Linux" or "AIX" or "SunOS") not in uname:
-                    print "requires manual change: %s" % server
                     with open(filename, "a") as f:
                         f.write("requires manual change: %s\n" % server)
                     return
             except (paramiko.ssh_exception.SSHException):
-                print "authentication failed: %s" % server
                 with open(filename, "a") as f:
                     f.write("authentication failed: %s\n" % server)
                 return
             except socket.error as e:
-                print "ssh timed out: %s" % server
                 with open(filename, "a") as f:
                     f.write("ssh timed out: %s\n" % server)
                 return
             except Exception as e:
-                print "error occured: %s" % server
                 with open(filename, "a") as f:
                     f.write("error occured: %s\n" % server)
                 return
@@ -1917,9 +1795,7 @@ def disabletelnet(disable_telnet_serverlist):
                 self.queue.task_done()
 
         def disabletelnet(self,server):
-            print "starting %s" % server
             if server.lower() in whitelist:
-                print "whitelisted: %s" % server
                 with open(filename, "a") as f:
                     f.write("whitelisted: %s\n" % server)
                 return
@@ -1938,7 +1814,6 @@ def disabletelnet(disable_telnet_serverlist):
                     release_version = ssh_stdout.read().splitlines()
                     release_version = [re.sub(' +',' ',x.strip()) for x in release_version]
                     if any("Ubuntu" in s for s in release_version) or any("debian" in s for s in release_version):
-                        print "requires manual change: %s" % server
                         with open(filename, "a") as f:
                             f.write("requires manual change: %s\n" % server)
                         return
@@ -1949,7 +1824,6 @@ def disabletelnet(disable_telnet_serverlist):
                         # make change to config
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("sed -i 's/.*disable.*/        disable = yes/g' /etc/xinetd.d/telnet")
                         if ssh_stdout.channel.recv_exit_status() != 0:
-                            print "failed change: %s" % server
                             with open(filename, "a") as f:
                                 f.write("failed change: %s\n" % server)
                             return
@@ -1957,25 +1831,21 @@ def disabletelnet(disable_telnet_serverlist):
                         # restart xinetd 
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("service xinetd restart")
                         if ssh_stdout.channel.recv_exit_status() != 0:
-                            print "failed change: %s" % server
                             with open(filename, "a") as f:
                                 f.write("failed change: %s\n" % server)
                             return
                         # telnet for chkconfig
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("chkconfig telnet off")
                         if ssh_stdout.channel.recv_exit_status() != 0:
-                            print "failed change: %s" % server
                             with open(filename, "a") as f:
                                 f.write("failed change: %s\n" % server)
-                                
-                        print "success: %s" % server
+
                         with open(filename, "a") as f:
                             f.write("success: %s\n" % server)
                         return
 
                     # else catch all here
                     else:
-                        print "requires manual change: %s" % server
                         with open(filename, "a") as f:
                             f.write("requires manual change: %s\n" % server)
                         return
@@ -1987,7 +1857,6 @@ def disabletelnet(disable_telnet_serverlist):
                     backup_command = "cp /etc/inetd.conf /etc/inetd.conf.old.%s" % today
                     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(backup_command)
                     if ssh_stdout.channel.recv_exit_status() != 0:
-                        print "failed change: %s" % server
                         with open(filename, "a") as f:
                             f.write("failed change: %s\n" % server)
                         return
@@ -1996,7 +1865,6 @@ def disabletelnet(disable_telnet_serverlist):
                     sed_command = "sed 's/^telnet/#telnet/g' /etc/inetd.conf > /etc/inetd.conf.new.%s" % today
                     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(sed_command)
                     if ssh_stdout.channel.recv_exit_status() != 0:
-                        print "failed change: %s" % server
                         with open(filename, "a") as f:
                             f.write("failed change: %s\n" % server)
                         return
@@ -2005,7 +1873,6 @@ def disabletelnet(disable_telnet_serverlist):
                     cp_command = "cp /etc/inetd.conf.new.%s /etc/inetd.conf" % today
                     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(cp_command)
                     if ssh_stdout.channel.recv_exit_status() != 0:
-                        print "failed change: %s" % server
                         with open(filename, "a") as f:
                             f.write("failed change: %s\n" % server)
                         return
@@ -2013,12 +1880,10 @@ def disabletelnet(disable_telnet_serverlist):
                     # restart xinetd 
                     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("refresh -s inetd")
                     if ssh_stdout.channel.recv_exit_status() != 0:
-                        print "failed change: %s" % server
                         with open(filename, "a") as f:
                             f.write("failed change: %s\n" % server)
                         return
-                            
-                    print "success: %s" % server
+
                     with open(filename, "a") as f:
                         f.write("success: %s\n" % server)
                     return
@@ -2028,32 +1893,26 @@ def disabletelnet(disable_telnet_serverlist):
                     # disable telnet
                     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("svcadm disable telnet")
                     if ssh_stdout.channel.recv_exit_status() != 0:
-                        print "failed change: %s" % server
                         with open(filename, "a") as f:
                             f.write("failed change: %s\n" % server)
-                            
-                    print "success: %s" % server
+
                     with open(filename, "a") as f:
                         f.write("success: %s\n" % server)
                     return
 
                 if ("Linux" or "AIX" or "SunOS") not in uname:
-                    print "requires manual change: %s" % server
                     with open(filename, "a") as f:
                         f.write("requires manual change: %s\n" % server)
                     return
             except (paramiko.ssh_exception.SSHException):
-                print "authentication failed: %s" % server
                 with open(filename, "a") as f:
                     f.write("authentication failed: %s\n" % server)
                 return
             except socket.error as e:
-                print "ssh timed out: %s" % server
                 with open(filename, "a") as f:
                     f.write("ssh timed out: %s\n" % server)
                 return
             except Exception as e:
-                print "error occured: %s" % server
                 with open(filename, "a") as f:
                     f.write("error occured: %s\n" % server)
                 return
