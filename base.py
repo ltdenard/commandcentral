@@ -459,7 +459,7 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
                             return
 
                         # create v3 user
-                        snmp_ro_command = "echo '%s solarwinds' > /etc/snmp/snmpd.conf" % snmpuser
+                        snmp_ro_command = "echo 'rouser %s' > /etc/snmp/snmpd.conf" % snmpuser
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(snmp_ro_command)
                         if ssh_stdout.channel.recv_exit_status() != 0:
                             print "failed change: %s" % server
