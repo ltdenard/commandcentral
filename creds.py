@@ -2,13 +2,13 @@
 import paramiko
 
 username = "root"
-keyfilepath = "/root/.ssh/id_rsa"
+keyfilepath = "~/.ssh/id_rsa"
 keypassword = None
-password = "password"
+password = ""
 privatekey = paramiko.RSAKey.from_private_key_file(keyfilepath, password=keypassword)
-logfolder = "/root/commandcentral/logs/"
-tmpfolder = "/root/commandcentral/tmp/"
-mountlogsfolder = "/root/commandcentral/mount_logs/"
+logfolder = "/data/n1/scripts/commandcentralv1/logs/"
+tmpfolder = "/data/n1/scripts/commandcentralv1/tmp/"
+mountlogsfolder = "/data/n1/scripts/commandcentralv1/mount_logs/"
 
 # health check variables
 nis_admin_group = "nis_admin_users"
