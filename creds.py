@@ -21,30 +21,30 @@ oldpassword = "oldpassword"
 newpassword = "newpassword"
 
 whitelist = [
-                'machine1',
-                '192.168.1.1',
-            ]
+    'machine1',
+    '192.168.1.1',
+]
 
 sox_servers = [
-                'soxserver1',
-                'soxserver2',
-            ]
+    'soxserver1',
+    'soxserver2',
+]
 
 ftp_whitelist = [
-		'ftpserver1'
-		'ftpserver2'
-            ]
+    'ftpserver1'
+    'ftpserver2'
+]
 
 telnet_whitelist = [
-		'legacyserver1'
-		'legacyserver2'
-            ]
+    'legacyserver1'
+    'legacyserver2'
+]
 
 auth_check_ignore = [
-                'example.com',
-                'server01',
-            ]
+    'example.com',
+    'server01',
+]
 
 push_ssh_key_whitelist = [
-                'appliance01'
-            ]
+    'appliance01'
+]
