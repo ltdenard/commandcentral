@@ -13,5 +13,4 @@ keys = [
 # itop_pull(serverlist)
 
 # check server status and return auth log file
-push_key_filename = pushsshkeys(keys,serverlist)
-
+push_key_filename = pushsshkeys(keys, serverlist)

@@ -27,12 +27,12 @@ failures_list = [x for x in serverlist if "okay" not in x and "whitelisted" not 
 
 email_text = "The following servers have authenication issues: \n\n%s" % "\t\n".join(failures_list)
 email_body = string.join((
-        "From: %s" % email_from,
-        "To: %s" % email_to,
-        "Subject: %s" % email_subject,
-        "",
-        email_text
-        ), "\r\n")
+    "From: %s" % email_from,
+    "To: %s" % email_to,
+    "Subject: %s" % email_subject,
+    "",
+    email_text
+), "\r\n")
 
 server = smtplib.SMTP(email_relay_host)
 server.sendmail(email_from, [email_to], email_body)

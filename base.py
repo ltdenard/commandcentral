@@ -2,6 +2,8 @@
 
 # this function is used to change the root password
 # via a root login via key or password
+
+
 def rootpasswdchange(root_pass_change_list):
     from creds import tmpfolder, logfolder
     from creds import username, oldpassword, newpassword
@@ -28,14 +30,14 @@ def rootpasswdchange(root_pass_change_list):
         def __init__(self, queue):
             threading.Thread.__init__(self)
             self.queue = queue
-     
+
         def run(self):
             while True:
                 server = self.queue.get()
                 self.changeroot(server)
                 self.queue.task_done()
 
-        def changeroot(self,server):
+        def changeroot(self, server):
             if server.lower() in whitelist:
                 with open(filename, "a") as f:
                     f.write("requires manual change: %s\n" % server)
@@ -51,7 +53,7 @@ def rootpasswdchange(root_pass_change_list):
                 if "Linux" in uname:
                     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("cat /etc/*release")
                     release_version = ssh_stdout.read().splitlines()
-                    release_version = [re.sub(' +',' ',x.strip()) for x in release_version]
+                    release_version = [re.sub(' +', ' ', x.strip()) for x in release_version]
                     if any("Ubuntu" in s for s in release_version) or any("debian" in s for s in release_version):
                         with open(filename, "a") as f:
                             f.write("requires manual change: %s\n" % server)
@@ -76,21 +78,21 @@ def rootpasswdchange(root_pass_change_list):
                 if "SunOS" in uname:
                     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("grep root: /etc/shadow")
                     r = ssh_stdout.read().splitlines()
-                    r = [re.sub(' +',' ',x.strip()) for x in r]
+                    r = [re.sub(' +', ' ', x.strip()) for x in r]
                     shadowarray = r[0].split(":")
                     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("uname -n")
                     hostname = ssh_stdout.read().strip()
                     if hostname in sox_servers:
                         maxage = "45"
                     else:
-                        maxage ="99999"
-                    newshadowline = "%s:%s:%s:%s:%s:%s:%s:%s:%s" % (shadowarray[0],passwordhash,days,shadowarray[3],maxage,shadowarray[5],shadowarray[6],shadowarray[7],shadowarray[8])
+                        maxage = "99999"
+                    newshadowline = "%s:%s:%s:%s:%s:%s:%s:%s:%s" % (shadowarray[0], passwordhash, days, shadowarray[3], maxage, shadowarray[5], shadowarray[6], shadowarray[7], shadowarray[8])
                     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("cp /etc/shadow /etc/shadow.bak")
                     if ssh_stdout.channel.recv_exit_status() != 0:
                         with open(filename, "a") as f:
                             f.write("failed change: %s\n" % server)
                         return
-                    sedcommand = "sed 's|%s|%s|g' /etc/shadow > /etc/shadow.new" % (r[0],newshadowline)
+                    sedcommand = "sed 's|%s|%s|g' /etc/shadow > /etc/shadow.new" % (r[0], newshadowline)
                     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(sedcommand)
                     if ssh_stdout.channel.recv_exit_status() != 0:
                         with open(filename, "a") as f:
@@ -132,10 +134,10 @@ def rootpasswdchange(root_pass_change_list):
             queue.put(server)
         queue.join()
 
-    opensslcommand=str("openssl passwd -1 %s" % newpassword).split()
-    passwordhash=subprocess.Popen(opensslcommand, stdout=subprocess.PIPE).communicate()[0].strip()
-    linuxcommand="echo \"%s\" | passwd root --stdin" % newpassword
-    aixcommand="echo 'root:%s' | chpasswd -c" % newpassword
+    opensslcommand = str("openssl passwd -1 %s" % newpassword).split()
+    passwordhash = subprocess.Popen(opensslcommand, stdout=subprocess.PIPE).communicate()[0].strip()
+    linuxcommand = "echo \"%s\" | passwd root --stdin" % newpassword
+    aixcommand = "echo 'root:%s' | chpasswd -c" % newpassword
     epoch = datetime.datetime.utcfromtimestamp(0)
     today = datetime.datetime.today()
     d = today - epoch
@@ -153,7 +155,7 @@ def rootpasswdchange(root_pass_change_list):
 
 
 # check for a user on boxes
-def usercheck(userid,userid_check_serverlist):
+def usercheck(userid, userid_check_serverlist):
     from creds import tmpfolder, logfolder
     from creds import username, password
     from creds import keyfilepath, keypassword, privatekey
@@ -174,11 +176,11 @@ def usercheck(userid,userid_check_serverlist):
     import subprocess
 
     class UserCheck(threading.Thread):
-     
+
         def __init__(self, queue):
             threading.Thread.__init__(self)
             self.queue = queue
-     
+
         def run(self):
             while True:
                 server = self.queue.get()
@@ -193,15 +195,15 @@ def usercheck(userid,userid_check_serverlist):
                 ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
                 ssh.connect(server, username=username, password=password, pkey=privatekey)
                 ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(cmd)
-                if ssh_stdout.channel.recv_exit_status()==0:
+                if ssh_stdout.channel.recv_exit_status() == 0:
                     r = ssh_stdout.read().splitlines()
-                    r = [re.sub(' +',' ',x.strip()) for x in r]
+                    r = [re.sub(' +', ' ', x.strip()) for x in r]
                     with open(filename, "a") as f:
                         f.write("success : %s : %s\n" % (server, r))
                     return
                 else:
                     r = ssh_stdout.read().splitlines()
-                    r = [re.sub(' +',' ',x.strip()) for x in r]
+                    r = [re.sub(' +', ' ', x.strip()) for x in r]
                     with open(filename, "a") as f:
                         f.write("failed : %s : user does not exist\n" % server)
                     return
@@ -229,7 +231,7 @@ def usercheck(userid,userid_check_serverlist):
         for server in serverlist:
             queue.put(server)
         queue.join()
- 
+
     today = datetime.datetime.today()
     cmd = "id %s" % userid
     filedate = datetime.datetime.today().strftime('%Y-%m-%d-%s')
@@ -245,7 +247,7 @@ def usercheck(userid,userid_check_serverlist):
 
 
 # used to lock local accounts in bulk
-def lockuseraccount(userid,userid_lock_serverlist):
+def lockuseraccount(userid, userid_lock_serverlist):
     from creds import tmpfolder, logfolder
     from creds import username, password
     from creds import keyfilepath, keypassword, privatekey
@@ -266,11 +268,11 @@ def lockuseraccount(userid,userid_lock_serverlist):
     import subprocess
 
     class LockUserAccounts(threading.Thread):
-     
+
         def __init__(self, queue):
             threading.Thread.__init__(self)
             self.queue = queue
-     
+
         def run(self):
             while True:
                 server = self.queue.get()
@@ -286,9 +288,9 @@ def lockuseraccount(userid,userid_lock_serverlist):
                 ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
                 ssh.connect(server, username=username, password=password, pkey=privatekey)
                 ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(checkpasswdfile)
-                if ssh_stdout.channel.recv_exit_status()==0:
+                if ssh_stdout.channel.recv_exit_status() == 0:
                     r = ssh_stdout.read().splitlines()
-                    r = [re.sub(' +',' ',x.strip()) for x in r]
+                    r = [re.sub(' +', ' ', x.strip()) for x in r]
                     if not r:
                         with open(filename, "a") as f:
                             f.write("failed: %s\n" % server)
@@ -296,7 +298,7 @@ def lockuseraccount(userid,userid_lock_serverlist):
                     else:
                         locklocalaccount = "passwd -l %s" % arg1
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(locklocalaccount)
-                        if ssh_stdout.channel.recv_exit_status()==0:
+                        if ssh_stdout.channel.recv_exit_status() == 0:
                             with open(filename, "a") as f:
                                 f.write("success: %s\n" % server)
                             return
@@ -349,7 +351,7 @@ def lockuseraccount(userid,userid_lock_serverlist):
 # enable snmp version 3
 # TDOO: Account for file differences between older
 #       RHEL and newer versions
-def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
+def enablesnmpv3(snmpuser, snmppass, snmp_setup_serverlist):
     from creds import tmpfolder, logfolder
     from creds import username, password
     from creds import keyfilepath, keypassword, privatekey
@@ -375,14 +377,14 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
         def __init__(self, queue):
             threading.Thread.__init__(self)
             self.queue = queue
-     
+
         def run(self):
             while True:
                 server = self.queue.get()
                 self.enablesnmp(server)
                 self.queue.task_done()
 
-        def enablesnmp(self,server):
+        def enablesnmp(self, server):
             if server.lower() in whitelist:
                 with open(filename, "a") as f:
                     f.write("whitelisted: %s\n" % server)
@@ -399,7 +401,7 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
                     # check os type
                     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("cat /etc/*release")
                     release_version = ssh_stdout.read().splitlines()
-                    release_version = [re.sub(' +',' ',x.strip()) for x in release_version]
+                    release_version = [re.sub(' +', ' ', x.strip()) for x in release_version]
                     if any("Ubuntu" in s for s in release_version) or any("debian" in s for s in release_version):
                         with open(filename, "a") as f:
                             f.write("requires manual change: %s\n" % server)
@@ -434,8 +436,8 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
                             with open(filename, "a") as f:
                                 f.write("failed change: %s\n" % server)
                             return
-                        
-                        snmp_create_user = "echo 'createUser %s MD5 \"%s\" DES' >> /var/lib/net-snmp/snmpd.conf" % (snmpuser,snmppass)
+
+                        snmp_create_user = "echo 'createUser %s MD5 \"%s\" DES' >> /var/lib/net-snmp/snmpd.conf" % (snmpuser, snmppass)
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(snmp_create_user)
                         if ssh_stdout.channel.recv_exit_status() != 0:
                             with open(filename, "a") as f:
@@ -462,7 +464,7 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
                             with open(filename, "a") as f:
                                 f.write("failed change: %s\n" % server)
                             return
-                        
+
                         with open(filename, "a") as f:
                             f.write("success: %s\n" % server)
                         return
@@ -473,18 +475,17 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
                             f.write("requires manual change: %s\n" % server)
                         return
 
-
                 if "AIX" in uname:
 
                     # check oslevel
                     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("oslevel")
                     oslevel = ssh_stdout.read().splitlines()
-                    oslevel = [re.sub(' +',' ',x.strip()) for x in oslevel]
+                    oslevel = [re.sub(' +', ' ', x.strip()) for x in oslevel]
                     if any("4.3.3.0" in s for s in oslevel):
                         with open(filename, "a") as f:
                             f.write("requires manual change: %s\n" % server)
                         return
-                    
+
                     # backup config
                     backup_command = "cp /etc/snmpdv3.conf /etc/snmpdv3.conf.%s" % today
                     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(backup_command)
@@ -501,16 +502,15 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
                             f.write("failed change: %s\n" % server)
                         return
                     authkey = ssh_stdout.read().splitlines()
-                    authkey = [re.sub(' +',' ',x.strip()) for x in authkey][0]
+                    authkey = [re.sub(' +', ' ', x.strip()) for x in authkey][0]
                     if len(authkey) < 32:
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("startsrc -s snmpd")
                         with open(filename, "a") as f:
                             f.write("failed change: %s\n" % server)
                         return
 
-
                     # add lines to config file
-                    user_line = "USM_USER %s - HMAC-MD5  %s - - L -" % (snmpuser,authkey)
+                    user_line = "USM_USER %s - HMAC-MD5  %s - - L -" % (snmpuser, authkey)
                     echo_line = "echo '%s' >> /etc/snmpdv3.conf" % user_line
                     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("echo '# SNMP v3' >> /etc/snmpdv3.conf")
                     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(echo_line)
@@ -518,7 +518,7 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
                     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(snmp_group_line)
                     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("echo 'VACM_ACCESS solarGrp - - AuthNoPriv USM bigView - - -' >> /etc/snmpdv3.conf")
                     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("echo 'VACM_VIEW bigView internet - included -' >> /etc/snmpdv3.conf")
-                    
+
                     # stop and start snmp
                     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("startsrc -s snmpd")
                     if ssh_stdout.channel.recv_exit_status() != 0:
@@ -534,7 +534,7 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
                     # indentify what solaris version
                     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("uname -a")
                     oslevel = ssh_stdout.read().splitlines()
-                    oslevel = [re.sub(' +',' ',x.strip()) for x in oslevel]
+                    oslevel = [re.sub(' +', ' ', x.strip()) for x in oslevel]
                     if any("5.11" in s for s in oslevel):
                         # stop snmp
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("svcadm disable -t svc:/application/management/net-snmp:default")
@@ -542,7 +542,7 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
                             with open(filename, "a") as f:
                                 f.write("failed change: %s\n" % server)
                             return
-        
+
                         # back up config
                         config_backup = "cp /etc/net-snmp/snmp/snmpd.conf  /etc/net-snmp/snmp/snmpd.conf." + today
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(config_backup)
@@ -550,7 +550,7 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
                             with open(filename, "a") as f:
                                 f.write("failed change: %s\n" % server)
                             return
-                        
+
                         # sleep to wait for process to stop
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("sleep 1")
                         if ssh_stdout.channel.recv_exit_status() != 0:
@@ -566,7 +566,7 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
                                 f.write("failed change: %s\n" % server)
                             return
 
-                        snmp_user_command = "echo 'createUser %s MD5 \"%s\" DES' >> /var/sma_snmp/snmpd.conf" % (snmpuser,snmppass)
+                        snmp_user_command = "echo 'createUser %s MD5 \"%s\" DES' >> /var/sma_snmp/snmpd.conf" % (snmpuser, snmppass)
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(snmp_user_command)
                         if ssh_stdout.channel.recv_exit_status() != 0:
                             with open(filename, "a") as f:
@@ -578,8 +578,7 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
                         if ssh_stdout.channel.recv_exit_status() != 0:
                             with open(filename, "a") as f:
                                 f.write("failed change: %s\n" % server)
-                            return    
-
+                            return
 
                     else:
 
@@ -589,7 +588,7 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
                             with open(filename, "a") as f:
                                 f.write("failed change: %s\n" % server)
                             return
-        
+
                         # back up config
                         config_backup = "cp /etc/net-snmp/snmp/snmpd.conf  /etc/net-snmp/snmp/snmpd.conf." + today
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(config_backup)
@@ -597,7 +596,7 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
                             with open(filename, "a") as f:
                                 f.write("failed change: %s\n" % server)
                             return
-                        
+
                         # sleep to wait for process to stop
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("sleep 1")
                         if ssh_stdout.channel.recv_exit_status() != 0:
@@ -613,7 +612,7 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
                                 f.write("failed change: %s\n" % server)
                             return
 
-                        snmp_user_command = "echo 'createUser %s MD5 \"%s\" DES' >> /var/sma_snmp/snmpd.conf" % (snmpuser,snmppass)
+                        snmp_user_command = "echo 'createUser %s MD5 \"%s\" DES' >> /var/sma_snmp/snmpd.conf" % (snmpuser, snmppass)
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(snmp_user_command)
                         if ssh_stdout.channel.recv_exit_status() != 0:
                             with open(filename, "a") as f:
@@ -625,14 +624,13 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
                         if ssh_stdout.channel.recv_exit_status() != 0:
                             with open(filename, "a") as f:
                                 f.write("failed change: %s\n" % server)
-                            return   
+                            return
 
                     with open(filename, "a") as f:
                         f.write("success: %s\n" % server)
                     return
 
-
-                if ("Linux" or "AIX" or "SunOS") not in uname:
+                if("Linux" or "AIX" or "SunOS") not in uname:
                     with open(filename, "a") as f:
                         f.write("requires manual change: %s\n" % server)
                     return
@@ -672,6 +670,7 @@ def enablesnmpv3(snmpuser,snmppass,snmp_setup_serverlist):
     main(serverlist)
     return filename
 
+
 # health check for authenication. check /etc/nsswitch.conf for sss then issues
 # and id for and ipa user. checks /etc/passwd for admin netgroup
 def healthcheckauth(health_check_auth_serverlist):
@@ -701,14 +700,14 @@ def healthcheckauth(health_check_auth_serverlist):
         def __init__(self, queue):
             threading.Thread.__init__(self)
             self.queue = queue
-     
+
         def run(self):
             while True:
                 server = self.queue.get()
                 self.healthcheck(server)
                 self.queue.task_done()
 
-        def healthcheck(self,server):
+        def healthcheck(self, server):
             if any(server_ignore in server.lower() for server_ignore in auth_check_ignore):
                 with open(filename, "a") as f:
                     f.write("whitelisted: %s\n" % server)
@@ -725,10 +724,10 @@ def healthcheckauth(health_check_auth_serverlist):
                     grep_nis_group = "grep %s /etc/passwd" % nis_admin_group
                     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(grep_nis_group)
                     nis_group = ssh_stdout.read().splitlines()
-                    nis_group = [re.sub(' +',' ',x.strip()) for x in nis_group]
+                    nis_group = [re.sub(' +', ' ', x.strip()) for x in nis_group]
                     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("grep '^passwd' /etc/nsswitch.conf")
                     ipa_check = ssh_stdout.read().splitlines()
-                    ipa_check = [re.sub(' +',' ',x.strip()) for x in ipa_check]
+                    ipa_check = [re.sub(' +', ' ', x.strip()) for x in ipa_check]
                     if any(nis_admin_group in s for s in nis_group):
                         nis_id_command = "id %s" % nis_id_check
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(nis_id_command)
@@ -763,7 +762,7 @@ def healthcheckauth(health_check_auth_serverlist):
                     grep_nis_group = "grep %s /etc/passwd" % nis_admin_group
                     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(grep_nis_group)
                     nis_group = ssh_stdout.read().splitlines()
-                    nis_group = [re.sub(' +',' ',x.strip()) for x in nis_group]
+                    nis_group = [re.sub(' +', ' ', x.strip()) for x in nis_group]
                     if any(nis_admin_group in s for s in nis_group):
                         nis_id_command = "id %s" % nis_id_check
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(nis_id_command)
@@ -788,7 +787,7 @@ def healthcheckauth(health_check_auth_serverlist):
                     grep_nis_group = "grep %s /etc/passwd" % nis_admin_group
                     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(grep_nis_group)
                     nis_group = ssh_stdout.read().splitlines()
-                    nis_group = [re.sub(' +',' ',x.strip()) for x in nis_group]
+                    nis_group = [re.sub(' +', ' ', x.strip()) for x in nis_group]
                     if any(nis_admin_group in s for s in nis_group):
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("id nis")
                         if ssh_stdout.channel.recv_exit_status() != 0:
@@ -844,7 +843,8 @@ def healthcheckauth(health_check_auth_serverlist):
     main(serverlist)
     return filename
 
-# health check for mounts 
+
+# health check for mounts
 # basically makes a copy of the current mount command output
 def healthcheckmount(health_check_mount_serverlist):
     from creds import tmpfolder, logfolder, mountlogsfolder
@@ -872,21 +872,21 @@ def healthcheckmount(health_check_mount_serverlist):
         def __init__(self, queue):
             threading.Thread.__init__(self)
             self.queue = queue
-     
+
         def run(self):
             while True:
                 server = self.queue.get()
                 self.healthcheck(server)
                 self.queue.task_done()
 
-        def healthcheck(self,server):
+        def healthcheck(self, server):
             if server.lower() in whitelist:
                 with open(filename, "a") as f:
                     f.write("whitelisted: %s\n" % server)
                 return
             try:
                 runlog = logfolder + "health_check_mount_debug_log.txt"
-		today = datetime.datetime.today()
+                today = datetime.datetime.today()
                 paramiko.util.log_to_file(runlog)
                 ssh = paramiko.SSHClient()
                 ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -898,7 +898,7 @@ def healthcheckmount(health_check_mount_serverlist):
                 with open(mount_log_filename, "w") as f:
                     f.write(mount_output)
                 older_file = min(glob.iglob(mountlogsfolder + server_name + "*" + ".txt"), key=os.path.getctime)
-                mount_status = filecmp.cmp(older_file, mount_log_filename)          
+                mount_status = filecmp.cmp(older_file, mount_log_filename)
                 if mount_status:
                     with open(filename, "a") as f:
                         f.write("okay: %s\n" % server)
@@ -944,6 +944,7 @@ def healthcheckmount(health_check_mount_serverlist):
     main(serverlist)
     return filename
 
+
 # function to pull machine hostnames
 def pullhostname(pull_hostname_serverlist):
     from creds import tmpfolder, logfolder, mountlogsfolder
@@ -967,11 +968,11 @@ def pullhostname(pull_hostname_serverlist):
     import subprocess
 
     class GrabHostname(threading.Thread):
-     
+
         def __init__(self, queue):
             threading.Thread.__init__(self)
             self.queue = queue
-     
+
         def run(self):
             while True:
                 server = self.queue.get()
@@ -987,9 +988,9 @@ def pullhostname(pull_hostname_serverlist):
                 ssh.connect(server, username=username, password=password, pkey=privatekey, timeout=30.0)
                 ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command('hostname')
                 r = ssh_stdout.read().splitlines()
-                r = [re.sub(' +',' ',x.strip()) for x in r]
+                r = [re.sub(' +', ' ', x.strip()) for x in r]
                 with open(filename, "a") as f:
-                    f.write("%s,%s\n" % (server,r))
+                    f.write("%s,%s\n" % (server, r))
                 return
             except (paramiko.ssh_exception.SSHException):
                 with open(filename, "a") as f:
@@ -1032,7 +1033,7 @@ def pullhostname(pull_hostname_serverlist):
     return filename
 
 
-# audit ssh keys. This pulls all ssh keys for user it's ran for 
+# audit ssh keys. This pulls all ssh keys for user it's ran for
 def pullsshkeys(pull_ssh_keys_serverlist):
     from creds import tmpfolder, logfolder, mountlogsfolder
     from creds import username, password
@@ -1055,11 +1056,11 @@ def pullsshkeys(pull_ssh_keys_serverlist):
     import subprocess
 
     class PullSSHKeys(threading.Thread):
-     
+
         def __init__(self, queue):
             threading.Thread.__init__(self)
             self.queue = queue
-     
+
         def run(self):
             while True:
                 server = self.queue.get()
@@ -1074,9 +1075,9 @@ def pullsshkeys(pull_ssh_keys_serverlist):
                 ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
                 ssh.connect(server, username=username, password=password, pkey=privatekey)
                 ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command('cat ~/.ssh/authorized_keys')
-                if ssh_stdout.channel.recv_exit_status()==0:
+                if ssh_stdout.channel.recv_exit_status() == 0:
                     r = ssh_stdout.read().splitlines()
-                    r = [re.sub(' +',' ',x.strip()) for x in r]
+                    r = [re.sub(' +', ' ', x.strip()) for x in r]
                     with open(filename, "a") as f:
                         f.write("success: %s\n" % server)
                     for key in r:
@@ -1084,7 +1085,7 @@ def pullsshkeys(pull_ssh_keys_serverlist):
                     return
                 else:
                     r = ssh_stdout.read().splitlines()
-                    r = [re.sub(' +',' ',x.strip()) for x in r]
+                    r = [re.sub(' +', ' ', x.strip()) for x in r]
                     with open(filename, "a") as f:
                         f.write("failed: %s\n" % server)
                     return
@@ -1132,7 +1133,7 @@ def pullsshkeys(pull_ssh_keys_serverlist):
 
 
 # push ssh keys for a user
-def pushsshkeys(keys,keys_serverlist):
+def pushsshkeys(keys, keys_serverlist):
     from creds import tmpfolder, logfolder
     from creds import username, password
     from creds import keyfilepath, keypassword, privatekey
@@ -1154,11 +1155,11 @@ def pushsshkeys(keys,keys_serverlist):
     import subprocess
 
     class DeploySSHKeys(threading.Thread):
-     
+
         def __init__(self, queue):
             threading.Thread.__init__(self)
             self.queue = queue
-     
+
         def run(self):
             while True:
                 server = self.queue.get()
@@ -1178,7 +1179,7 @@ def pushsshkeys(keys,keys_serverlist):
                 ssh.connect(server, username=username, password=password, pkey=privatekey)
                 ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command('cat ~/.ssh/authorized_keys')
                 r = ssh_stdout.read().splitlines()
-                r = [re.sub(' +',' ',x.strip()) for x in r]
+                r = [re.sub(' +', ' ', x.strip()) for x in r]
                 for key in keys:
                     if key not in r:
                         ssh.exec_command('mkdir -p ~/.ssh/')
@@ -1218,7 +1219,7 @@ def pushsshkeys(keys,keys_serverlist):
             queue.put(server)
         # wait for the queue to finish
         queue.join()
-    
+
     today = datetime.datetime.today()
     keys = [x.strip() for x in keys]
     filedate = datetime.datetime.today().strftime('%Y-%m-%d-%s')
@@ -1231,6 +1232,7 @@ def pushsshkeys(keys,keys_serverlist):
         serverlist = f.read().splitlines()
     main(serverlist)
     return filename
+
 
 # check yum.conf for excludes
 def yumcheckconf(yum_exclude_check_serverlist):
@@ -1255,11 +1257,11 @@ def yumcheckconf(yum_exclude_check_serverlist):
     import subprocess
 
     class YumConfCheck(threading.Thread):
-     
+
         def __init__(self, queue):
             threading.Thread.__init__(self)
             self.queue = queue
-     
+
         def run(self):
             while True:
                 server = self.queue.get()
@@ -1275,9 +1277,9 @@ def yumcheckconf(yum_exclude_check_serverlist):
                 ssh.connect(server, username=username, password=password, pkey=privatekey, timeout=30.0)
                 ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(commandtorun)
                 r = ssh_stdout.read().splitlines()
-                r = [re.sub(' +',' ',x.strip()) for x in r]
+                r = [re.sub(' +', ' ', x.strip()) for x in r]
                 with open(filename, "a") as f:
-                    f.write("%s,%s\n" % (server,r))
+                    f.write("%s,%s\n" % (server, r))
                 return
             except (paramiko.ssh_exception.SSHException):
                 with open(filename, "a") as f:
@@ -1306,7 +1308,7 @@ def yumcheckconf(yum_exclude_check_serverlist):
             queue.put(server)
         # wait for the queue to finish
         queue.join()
-    
+
     today = datetime.datetime.today()
     commandtorun = "grep exclude /etc/yum.conf"
     filedate = datetime.datetime.today().strftime('%Y-%m-%d-%s')
@@ -1319,7 +1321,6 @@ def yumcheckconf(yum_exclude_check_serverlist):
         serverlist = f.read().splitlines()
     main(serverlist)
     return yum_exclude_check_serverlist
-
 
 
 # function to pull list of active machines from itop
@@ -1342,7 +1343,8 @@ def itop_pull(serverlistfilename):
     import subprocess
 
     class html2csv(HTMLParser.HTMLParser):
-        ''' A basic parser which converts HTML tables into CSV.'''
+        """ A basic parser which converts HTML tables into CSV."""
+
         def __init__(self):
             HTMLParser.HTMLParser.__init__(self)
             self.CSV = ''      # The CSV data
@@ -1351,42 +1353,58 @@ def itop_pull(serverlistfilename):
             self.inTR = 0      # Used to track if we are inside or outside a <TR>...</TR> tag.
             self.re_multiplespaces = re.compile('\s+')  # regular expression used to remove spaces in excess
             self.rowCount = 0  # CSV output line counter.
+
         def handle_starttag(self, tag, attrs):
-            if   tag == 'tr': self.start_tr()
-            elif tag == 'td': self.start_td()
+            if tag == 'tr':
+                self.start_tr()
+            elif tag == 'td':
+                self.start_td()
+
         def handle_endtag(self, tag):
-            if   tag == 'tr': self.end_tr()
-            elif tag == 'td': self.end_td()         
+            if tag == 'tr':
+                self.end_tr()
+            elif tag == 'td':
+                self.end_td()
+
         def start_tr(self):
-            if self.inTR: self.end_tr()  # <TR> implies </TR>
+            if self.inTR:
+                self.end_tr()  # <TR> implies </TR>
             self.inTR = 1
+
         def end_tr(self):
-            if self.inTD: self.end_td()  # </TR> implies </TD>
-            self.inTR = 0            
+            if self.inTD:
+                self.end_td()  # </TR> implies </TD>
+            self.inTR = 0
             if len(self.CSVrow) > 0:
                 self.CSV += self.CSVrow[:-1]
                 self.CSVrow = ''
             self.CSV += '\n'
             self.rowCount += 1
+
         def start_td(self):
-            if not self.inTR: self.start_tr() # <TD> implies <TR>
+            if not self.inTR:
+                self.start_tr()  # <TD> implies <TR>
             self.CSVrow += '"'
             self.inTD = 1
+
         def end_td(self):
             if self.inTD:
-                self.CSVrow += '",'  
+                self.CSVrow += '",'
                 self.inTD = 0
+
         def handle_data(self, data):
             if self.inTD:
-                self.CSVrow += self.re_multiplespaces.sub(' ',data.replace('\t',' ').replace('\n','').replace('\r','').replace('"','""'))
-        def getCSV(self,purge=False):
-            ''' Get output CSV.
+                self.CSVrow += self.re_multiplespaces.sub(' ', data.replace('\t', ' ').replace('\n', '').replace('\r', '').replace('"', '""'))
+
+        def getCSV(self, purge=False):
+            """ Get output CSV.
                 If purge is true, getCSV() will return all remaining data,
                 even if <td> or <tr> are not properly closed.
                 (You would typically call getCSV with purge=True when you do not have
-                any more HTML to feed and you suspect dirty HTML (unclosed tags). 
-            '''
-            if purge and self.inTR: self.end_tr()  # This will also end_td and append last CSV row to output CSV.
+                any more HTML to feed and you suspect dirty HTML (unclosed tags).
+            """
+            if purge and self.inTR:
+                self.end_tr()  # This will also end_td and append last CSV row to output CSV.
             dataout = self.CSV[:]
             self.CSV = ''
             return dataout
@@ -1394,25 +1412,25 @@ def itop_pull(serverlistfilename):
     # define devnull
     devnull = open(os.devnull, 'w')
     # login to itop and save cookie
-    subprocess.call(["wget", "-O", "/dev/null", "--no-check-certificate", "--keep-session-cookies", "--save-cookies", tmpfolder + "cookies.txt", "--post-data", "auth_user=itopuser&auth_pwd=password&loginop=login&submit=Enter iTop", "https://itop.example.com/itop-itsm/pages/UI.php"],stdout=devnull, stderr=devnull)
+    subprocess.call(["wget", "-O", "/dev/null", "--no-check-certificate", "--keep-session-cookies", "--save-cookies", tmpfolder + "cookies.txt", "--post-data", "auth_user=itopuser&auth_pwd=password&loginop=login&submit=Enter iTop", "https://itop.example.com/itop-itsm/pages/UI.php"], stdout=devnull, stderr=devnull)
 
     # pull itop list from custom query
-    subprocess.call(["wget", "-O", tmpfolder + "itop_export.html", "--no-check-certificate", "-x", "--load-cookies", tmpfolder + "cookies.txt", "https://itop.example.com/itop-itsm/webservices/export.php?format=spreadsheet&login_mode=basic&query=8"],stdout=devnull, stderr=devnull)
+    subprocess.call(["wget", "-O", tmpfolder + "itop_export.html", "--no-check-certificate", "-x", "--load-cookies", tmpfolder + "cookies.txt", "https://itop.example.com/itop-itsm/webservices/export.php?format=spreadsheet&login_mode=basic&query=8"], stdout=devnull, stderr=devnull)
 
     html_files = glob.glob(tmpfolder + "itop_export.html")
     for htmlfilename in html_files:
-        outputfilename = os.path.splitext(htmlfilename)[0]+'.csv'
+        outputfilename = os.path.splitext(htmlfilename)[0] + '.csv'
         parser = html2csv()
         try:
             htmlfile = open(htmlfilename, 'rb')
-            csvfile = open( outputfilename, 'w+b')
+            csvfile = open(outputfilename, 'w+b')
             data = htmlfile.read(8192)
             while data:
-                parser.feed( data )
-                csvfile.write( parser.getCSV() )
+                parser.feed(data)
+                csvfile.write(parser.getCSV())
                 sys.stdout.write('%d CSV rows written.\r' % parser.rowCount)
                 data = htmlfile.read(8192)
-            csvfile.write( parser.getCSV(True) )
+            csvfile.write(parser.getCSV(True))
             csvfile.close()
             htmlfile.close()
         except:
@@ -1424,12 +1442,12 @@ def itop_pull(serverlistfilename):
                 csvfile.close()
             except:
                 pass
-    
+
     # grep out unwanted machines
     p = subprocess.Popen(["egrep", "-v", "dispose|inactive|Tandem|decomm|ESX|AS400|Hardware|Apple|Windows|VOS|zVM", tmpfolder + "itop_export.csv"], stdout=subprocess.PIPE)
     output, error = p.communicate()
     serverlist = [x.split(",")[0] for x in re.sub('["]', '', output).splitlines()][1:]
-    
+
     # write list to file
     with open(serverlistfilename, 'w') as f:
         for server in serverlist:
@@ -1437,7 +1455,6 @@ def itop_pull(serverlistfilename):
     # remove files not needed
     subprocess.call(["rm", "-rf", tmpfolder + "itop_export.html", tmpfolder + "itop_export.csv", tmpfolder + "cookies.txt"])
     return serverlistfilename
-
 
 
 # disable anonymous ftp and ftp/ftp account
@@ -1467,14 +1484,14 @@ def disableftpanon(disable_ftp_anon_serverlist):
         def __init__(self, queue):
             threading.Thread.__init__(self)
             self.queue = queue
-     
+
         def run(self):
             while True:
                 server = self.queue.get()
                 self.disableftpanon(server)
                 self.queue.task_done()
 
-        def disableftpanon(self,server):
+        def disableftpanon(self, server):
             if server.lower() in whitelist:
                 with open(filename, "a") as f:
                     f.write("whitelisted: %s\n" % server)
@@ -1493,7 +1510,7 @@ def disableftpanon(disable_ftp_anon_serverlist):
                     # check os type
                     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("cat /etc/*release")
                     release_version = ssh_stdout.read().splitlines()
-                    release_version = [re.sub(' +',' ',x.strip()) for x in release_version]
+                    release_version = [re.sub(' +', ' ', x.strip()) for x in release_version]
                     if any("Ubuntu" in s for s in release_version) or any("debian" in s for s in release_version):
                         with open(filename, "a") as f:
                             f.write("requires manual change: %s\n" % server)
@@ -1537,7 +1554,6 @@ def disableftpanon(disable_ftp_anon_serverlist):
                         with open(filename, "a") as f:
                             f.write("requires manual change: %s\n" % server)
                         return
-
 
                 if "AIX" in uname:
                     with open(filename, "a") as f:
@@ -1589,6 +1605,7 @@ def disableftpanon(disable_ftp_anon_serverlist):
     main(serverlist)
     return disable_ftp_anon_serverlist
 
+
 # disable anonymous ftp and ftp/ftp account then disable ftp altogether
 def disableftp(disable_ftp_serverlist):
     from creds import tmpfolder, logfolder, mountlogsfolder
@@ -1616,14 +1633,14 @@ def disableftp(disable_ftp_serverlist):
         def __init__(self, queue):
             threading.Thread.__init__(self)
             self.queue = queue
-     
+
         def run(self):
             while True:
                 server = self.queue.get()
                 self.disableftp(server)
                 self.queue.task_done()
 
-        def disableftp(self,server):
+        def disableftp(self, server):
             if server.lower() in whitelist:
                 with open(filename, "a") as f:
                     f.write("whitelisted: %s\n" % server)
@@ -1641,7 +1658,7 @@ def disableftp(disable_ftp_serverlist):
                     # check os type
                     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("cat /etc/*release")
                     release_version = ssh_stdout.read().splitlines()
-                    release_version = [re.sub(' +',' ',x.strip()) for x in release_version]
+                    release_version = [re.sub(' +', ' ', x.strip()) for x in release_version]
                     if any("Ubuntu" in s for s in release_version) or any("debian" in s for s in release_version):
                         with open(filename, "a") as f:
                             f.write("requires manual change: %s\n" % server)
@@ -1693,7 +1710,6 @@ def disableftp(disable_ftp_serverlist):
                             f.write("requires manual change: %s\n" % server)
                         return
 
-
                 if "AIX" in uname:
 
                     # backup current config
@@ -1720,13 +1736,13 @@ def disableftp(disable_ftp_serverlist):
                             f.write("failed change: %s\n" % server)
                         return
 
-                    # restart xinetd 
+                    # restart xinetd
                     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("refresh -s inetd")
                     if ssh_stdout.channel.recv_exit_status() != 0:
                         with open(filename, "a") as f:
                             f.write("failed change: %s\n" % server)
                         return
-                            
+
                     with open(filename, "a") as f:
                         f.write("success: %s\n" % server)
                     return
@@ -1738,7 +1754,7 @@ def disableftp(disable_ftp_serverlist):
                     if ssh_stdout.channel.recv_exit_status() != 0:
                         with open(filename, "a") as f:
                             f.write("failed change: %s\n" % server)
-                            
+
                     with open(filename, "a") as f:
                         f.write("success: %s\n" % server)
                     return
@@ -1783,7 +1799,7 @@ def disableftp(disable_ftp_serverlist):
     return disable_ftp_serverlist
 
 
-# disables telnet 
+# disables telnet
 def disabletelnet(disable_telnet_serverlist):
     from creds import tmpfolder, logfolder, mountlogsfolder
     from creds import username, password
@@ -1810,14 +1826,14 @@ def disabletelnet(disable_telnet_serverlist):
         def __init__(self, queue):
             threading.Thread.__init__(self)
             self.queue = queue
-     
+
         def run(self):
             while True:
                 server = self.queue.get()
                 self.disabletelnet(server)
                 self.queue.task_done()
 
-        def disabletelnet(self,server):
+        def disabletelnet(self, server):
             if server.lower() in whitelist:
                 with open(filename, "a") as f:
                     f.write("whitelisted: %s\n" % server)
@@ -1835,7 +1851,7 @@ def disabletelnet(disable_telnet_serverlist):
                     # check os type
                     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("cat /etc/*release")
                     release_version = ssh_stdout.read().splitlines()
-                    release_version = [re.sub(' +',' ',x.strip()) for x in release_version]
+                    release_version = [re.sub(' +', ' ', x.strip()) for x in release_version]
                     if any("Ubuntu" in s for s in release_version) or any("debian" in s for s in release_version):
                         with open(filename, "a") as f:
                             f.write("requires manual change: %s\n" % server)
@@ -1851,7 +1867,7 @@ def disabletelnet(disable_telnet_serverlist):
                                 f.write("failed change: %s\n" % server)
                             return
 
-                        # restart xinetd 
+                        # restart xinetd
                         ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("service xinetd restart")
                         if ssh_stdout.channel.recv_exit_status() != 0:
                             with open(filename, "a") as f:
@@ -1862,7 +1878,7 @@ def disabletelnet(disable_telnet_serverlist):
                         if ssh_stdout.channel.recv_exit_status() != 0:
                             with open(filename, "a") as f:
                                 f.write("failed change: %s\n" % server)
-                                
+
                         with open(filename, "a") as f:
                             f.write("success: %s\n" % server)
                         return
@@ -1872,7 +1888,6 @@ def disabletelnet(disable_telnet_serverlist):
                         with open(filename, "a") as f:
                             f.write("requires manual change: %s\n" % server)
                         return
-
 
                 if "AIX" in uname:
 
@@ -1900,13 +1915,13 @@ def disabletelnet(disable_telnet_serverlist):
                             f.write("failed change: %s\n" % server)
                         return
 
-                    # restart xinetd 
+                    # restart xinetd
                     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("refresh -s inetd")
                     if ssh_stdout.channel.recv_exit_status() != 0:
                         with open(filename, "a") as f:
                             f.write("failed change: %s\n" % server)
                         return
-                            
+
                     with open(filename, "a") as f:
                         f.write("success: %s\n" % server)
                     return
@@ -1918,7 +1933,7 @@ def disabletelnet(disable_telnet_serverlist):
                     if ssh_stdout.channel.recv_exit_status() != 0:
                         with open(filename, "a") as f:
                             f.write("failed change: %s\n" % server)
-                            
+
                     with open(filename, "a") as f:
                         f.write("success: %s\n" % server)
                     return
