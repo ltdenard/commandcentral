@@ -1,129 +1,128 @@
 #!/usr/bin/python
+from creds import tmpfolder, logfolder
+from creds import username, oldpassword, newpassword
+from creds import keyfilepath, keypassword, privatekey
+from creds import whitelist, sox_servers
+import re
+import os
+import sys
+import json
+import glob
+import time
+import Queue
+import getopt
+import socket
+import filecmp
+import datetime
+import paramiko
+import threading
+import HTMLParser
+import subprocess
 
-# this function is used to change the root password
-# via a root login via key or password
 
+class ChangeRootPasswd(threading.Thread):
+    """
+    Used to change the root password using a root login key or password
+    """
 
-def rootpasswdchange(root_pass_change_list):
-    from creds import tmpfolder, logfolder
-    from creds import username, oldpassword, newpassword
-    from creds import keyfilepath, keypassword, privatekey
-    from creds import whitelist, sox_servers
-    import re
-    import os
-    import sys
-    import json
-    import glob
-    import time
-    import Queue
-    import getopt
-    import socket
-    import filecmp
-    import datetime
-    import paramiko
-    import threading
-    import HTMLParser
-    import subprocess
+    def __init__(self, queue):
+        threading.Thread.__init__(self)
+        self.queue = queue
 
-    class ChangeRootPasswd(threading.Thread):
+    def run(self):
+        while True:
+            server = self.queue.get()
+            self.changeroot(server)
+            self.queue.task_done()
 
-        def __init__(self, queue):
-            threading.Thread.__init__(self)
-            self.queue = queue
+    # def rootpasswdchange(root_pass_change_list):
 
-        def run(self):
-            while True:
-                server = self.queue.get()
-                self.changeroot(server)
-                self.queue.task_done()
-
-        def changeroot(self, server):
-            if server.lower() in whitelist:
-                with open(filename, "a") as f:
-                    f.write("requires manual change: %s\n" % server)
-                return
-            try:
-                runlog = logfolder + "root_change_debug_log.txt"
-                paramiko.util.log_to_file(runlog)
-                ssh = paramiko.SSHClient()
-                ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-                ssh.connect(server, username=username, password=oldpassword, pkey=privatekey, timeout=30.0)
-                ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("uname")
-                uname = ssh_stdout.read().strip()
-                if "Linux" in uname:
-                    ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("cat /etc/*release")
-                    release_version = ssh_stdout.read().splitlines()
-                    release_version = [re.sub(' +', ' ', x.strip()) for x in release_version]
-                    if any("Ubuntu" in s for s in release_version) or any("debian" in s for s in release_version):
-                        with open(filename, "a") as f:
-                            f.write("requires manual change: %s\n" % server)
-                        return
-                    ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(linuxcommand)
-                    if ssh_stdout.channel.recv_exit_status() != 0:
-                        with open(filename, "a") as f:
-                            f.write("failed change: %s\n" % server)
-                        return
-                    with open(filename, "a") as f:
-                        f.write("success: %s\n" % server)
-                    return
-                if "AIX" in uname:
-                    ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(aixcommand)
-                    if ssh_stdout.channel.recv_exit_status() != 0:
-                        with open(filename, "a") as f:
-                            f.write("failed change: %s\n" % server)
-                        return
-                    with open(filename, "a") as f:
-                        f.write("success: %s\n" % server)
-                    return
-                if "SunOS" in uname:
-                    ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("grep root: /etc/shadow")
-                    r = ssh_stdout.read().splitlines()
-                    r = [re.sub(' +', ' ', x.strip()) for x in r]
-                    shadowarray = r[0].split(":")
-                    ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("uname -n")
-                    hostname = ssh_stdout.read().strip()
-                    if hostname in sox_servers:
-                        maxage = "45"
-                    else:
-                        maxage = "99999"
-                    newshadowline = "%s:%s:%s:%s:%s:%s:%s:%s:%s" % (shadowarray[0], passwordhash, days, shadowarray[3], maxage, shadowarray[5], shadowarray[6], shadowarray[7], shadowarray[8])
-                    ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("cp /etc/shadow /etc/shadow.bak")
-                    if ssh_stdout.channel.recv_exit_status() != 0:
-                        with open(filename, "a") as f:
-                            f.write("failed change: %s\n" % server)
-                        return
-                    sedcommand = "sed 's|%s|%s|g' /etc/shadow > /etc/shadow.new" % (r[0], newshadowline)
-                    ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(sedcommand)
-                    if ssh_stdout.channel.recv_exit_status() != 0:
-                        with open(filename, "a") as f:
-                            f.write("failed change: %s\n" % server)
-                        return
-                    ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("cp /etc/shadow.new /etc/shadow")
-                    if ssh_stdout.channel.recv_exit_status() != 0:
-                        with open(filename, "a") as f:
-                            f.write("failed change: %s\n" % server)
-                        return
-                    with open(filename, "a") as f:
-                        f.write("success: %s\n" % server)
-                    return
-                if ("Linux" or "AIX" or "SunOS") not in uname:
+    def changeroot(self, server):
+        if server.lower() in whitelist:
+            with open(filename, "a") as f:
+                f.write("requires manual change: %s\n" % server)
+            return
+        try:
+            runlog = logfolder + "root_change_debug_log.txt"
+            paramiko.util.log_to_file(runlog)
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh.connect(server, username=username, password=oldpassword, pkey=privatekey, timeout=30.0)
+            ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("uname")
+            uname = ssh_stdout.read().strip()
+            if "Linux" in uname:
+                ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("cat /etc/*release")
+                release_version = ssh_stdout.read().splitlines()
+                release_version = [re.sub(' +', ' ', x.strip()) for x in release_version]
+                if any("Ubuntu" in s for s in release_version) or any("debian" in s for s in release_version):
                     with open(filename, "a") as f:
                         f.write("requires manual change: %s\n" % server)
                     return
-            except (paramiko.ssh_exception.SSHException):
+                ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(linuxcommand)
+                if ssh_stdout.channel.recv_exit_status() != 0:
+                    with open(filename, "a") as f:
+                        f.write("failed change: %s\n" % server)
+                    return
                 with open(filename, "a") as f:
-                    f.write("authentication failed: %s\n" % server)
+                    f.write("success: %s\n" % server)
                 return
-            except socket.error as e:
+            if "AIX" in uname:
+                ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(aixcommand)
+                if ssh_stdout.channel.recv_exit_status() != 0:
+                    with open(filename, "a") as f:
+                        f.write("failed change: %s\n" % server)
+                    return
                 with open(filename, "a") as f:
-                    f.write("ssh timed out: %s\n" % server)
+                    f.write("success: %s\n" % server)
                 return
-            except Exception as e:
+            if "SunOS" in uname:
+                ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("grep root: /etc/shadow")
+                r = ssh_stdout.read().splitlines()
+                r = [re.sub(' +', ' ', x.strip()) for x in r]
+                shadowarray = r[0].split(":")
+                ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("uname -n")
+                hostname = ssh_stdout.read().strip()
+                if hostname in sox_servers:
+                    maxage = "45"
+                else:
+                    maxage = "99999"
+                newshadowline = "%s:%s:%s:%s:%s:%s:%s:%s:%s" % (shadowarray[0], passwordhash, days, shadowarray[3], maxage, shadowarray[5], shadowarray[6], shadowarray[7], shadowarray[8])
+                ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("cp /etc/shadow /etc/shadow.bak")
+                if ssh_stdout.channel.recv_exit_status() != 0:
+                    with open(filename, "a") as f:
+                        f.write("failed change: %s\n" % server)
+                    return
+                sedcommand = "sed 's|%s|%s|g' /etc/shadow > /etc/shadow.new" % (r[0], newshadowline)
+                ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(sedcommand)
+                if ssh_stdout.channel.recv_exit_status() != 0:
+                    with open(filename, "a") as f:
+                        f.write("failed change: %s\n" % server)
+                    return
+                ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("cp /etc/shadow.new /etc/shadow")
+                if ssh_stdout.channel.recv_exit_status() != 0:
+                    with open(filename, "a") as f:
+                        f.write("failed change: %s\n" % server)
+                    return
                 with open(filename, "a") as f:
-                    f.write("error occured: %s\n" % server)
+                    f.write("success: %s\n" % server)
                 return
+            if ("Linux" or "AIX" or "SunOS") not in uname:
+                with open(filename, "a") as f:
+                    f.write("requires manual change: %s\n" % server)
+                return
+        except (paramiko.ssh_exception.SSHException):
+            with open(filename, "a") as f:
+                f.write("authentication failed: %s\n" % server)
+            return
+        except socket.error as e:
+            with open(filename, "a") as f:
+                f.write("ssh timed out: %s\n" % server)
+            return
+        except Exception as e:
+            with open(filename, "a") as f:
+                f.write("error occured: %s\n" % server)
+            return
 
-    # main function
     def main(server):
         queue = Queue.Queue()
         for i in range(30):
@@ -1955,7 +1954,6 @@ def disabletelnet(disable_telnet_serverlist):
                     f.write("error occured: %s\n" % server)
                 return
 
-    # main function
     def main(server):
         queue = Queue.Queue()
         for i in range(30):
