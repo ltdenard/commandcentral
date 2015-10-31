@@ -20,6 +20,10 @@ import HTMLParser
 import subprocess
 
 
+# TODOs: Move methods to be incapsulated by classes so you can easily call class.main().
+#  Possibly break into separate files & provide some unified entry point.
+#  Goal should be to have a if self.name == '__main__': execute some command loop to choose what you wish to do
+
 class ChangeRootPasswd(threading.Thread):
     """
     Used to change the root password using a root login key or password
