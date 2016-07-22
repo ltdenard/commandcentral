@@ -1,16 +1,23 @@
+import re
+import Queue
 import socket
+import datetime
 import paramiko
 import threading
 
 class UnixAutomation:
 
-    def __init__(self,serverlistfile,logfile,outputfile,username,password,privatekey):
+    def __init__(self,serverlistfile,username,password,keyfile,keypass,basedir):
         self._serverlistfile = serverlistfile
-        self._logfile = logfile
         self._username = username
         self._password = password
-        self._privatekey = privatekey
-        self._outputfile = outputfile
+        self._keypassword = keypass
+        self._keyfilepath = keyfile
+        self._privatekey = paramiko.RSAKey.from_private_key_file(self._keyfilepath, password=self._keypassword)
+        self._logfolder = basedir + 'logs/'
+        self._tmpfolder = basedir + 'tmp/'
+        self._logfile = None
+        self._outputfile = None
 
     def serverlist(self):
         with open(self._serverlistfile) as f:
@@ -27,15 +34,15 @@ class UnixAutomation:
             return ssh
         except (paramiko.ssh_exception.SSHException) as e:
             with open(self._outputfile, "a") as f:
-                f.write("authenication failed: %s\n" % server)
+                f.write("%s,%s\n" % (server, [str(e)]))
             return
         except socket.error as e:
             with open(self._outputfile, "a") as f:
-                f.write("ssh timed out: %s" % server)
+                f.write("%s,%s\n" % (server, [str(e)]))
             return
         except Exception as e:
             with open(self._outputfile, "a") as f:
-                f.write("error occured: %s\n" % server)
+                f.write("%s,%s\n" % (server, [str(e)]))
             return
     
     def logintest(self, sessionobj):
@@ -51,17 +58,18 @@ class UnixAutomation:
         ssh_stdin, ssh_stdout, ssh_stderr = sessionobj.exec_command(execmd)
         return ssh_stdin, ssh_stdout, ssh_stderr
 
-    def grabhostname(self, sessionobj):
+    def gethostname(self, sessionobj):
         queue = Queue.Queue()
         for i in range(30):
-            t = GrabHostname(queue, sessionobj)
+            t = GetHostname(queue, sessionobj)
             t.setDaemon(True)
             t.start()
         for server in self.serverlist():
             queue.put(server)
         queue.join()
+        return self._outputfile
 
-class GrabHostname(threading.Thread, UnixAutomation):
+class GetHostname(threading.Thread, UnixAutomation):
 
     def __init__(self, queue, sessionobj):
         threading.Thread.__init__(self)
@@ -71,16 +79,23 @@ class GrabHostname(threading.Thread, UnixAutomation):
     def run(self):
         while True:
             server = self._queue.get()
-            self.grabhostname(server)
+            self.gethostname(self._sessionobj, server)
             self._queue.task_done()
 
     def gethostname(self, sessionobj, server):
+        filedate = datetime.datetime.today().strftime('%Y-%m-%d-%s')
+        filename = "hostname_pull_" + filedate + ".csv"
+        self._sessionobj._logfile = self._sessionobj._logfolder + 'gethostname.log'  
+        self._sessionobj._outputfile = self._sessionobj._logfolder + filename 
         ssh = self._sessionobj.login(server)
         if self._sessionobj.logintest(ssh) is 0:
             ssh_stdin, ssh_stdout, ssh_stderr = self._sessionobj.runcommand(sessionobj=ssh,execmd="hostname")
-            hostname = ssh_stdout.read()
+            hostname = [re.sub(' +', ' ', x.strip()) for x in ssh_stdout.read().splitlines()]
             self._sessionobj.logout(ssh)
-            return "%s : %s" % (server, hostname)
+            with open(sessionobj._outputfile, "a") as f:
+                f.write("%s,%s\n" % (server, hostname))
+            self._sessionobj.logout(ssh)            
+            return
         else:
-            return "%s : fail" % server
+            return
 
