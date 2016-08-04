@@ -4,6 +4,7 @@ import socket
 import datetime
 import paramiko
 import threading
+import subprocess
 
 class UnixAutomation:
 
@@ -136,9 +137,48 @@ class ChangeRootPassword(threading.Thread, UnixAutomation):
             self.changeroot(self._sessionobj, server)
             self._queue.task_done()
 
-    #def changeaix():
-    #def changelinux():
-    #def changesolaris():
+    def changeaix(newpassword):
+        aixcommand = "echo 'root:%s' | chpasswd -c" % newpassword
+    def changelinux(newpassword):
+        linuxcommand = "echo \"%s\" | passwd root --stdin" % newpassword
+    def changesolaris(newpassword):
+        opensslcommand = str("openssl passwd -1 %s" % newpassword).split()
+        passwordhash = subprocess.Popen(opensslcommand, stdout=subprocess.PIPE).communicate()[0].strip()
+        epoch = datetime.datetime.utcfromtimestamp(0)
+        today = datetime.datetime.today()
+        d = today - epoch
+        days = d.days
+
+        ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("grep root: /etc/shadow")
+        r = ssh_stdout.read().splitlines()
+        r = [re.sub(' +', ' ', x.strip()) for x in r]
+        shadowarray = r[0].split(":")
+        ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("uname -n")
+        hostname = ssh_stdout.read().strip()
+        if hostname in sox_servers:
+            maxage = "45"
+        else:
+            maxage = "99999"
+        newshadowline = "%s:%s:%s:%s:%s:%s:%s:%s:%s" % (shadowarray[0], passwordhash, days, shadowarray[3], maxage, shadowarray[5], shadowarray[6], shadowarray[7], shadowarray[8])
+        ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("cp /etc/shadow /etc/shadow.bak")
+        if ssh_stdout.channel.recv_exit_status() != 0:
+            with open(filename, "a") as f:
+                f.write("failed change: %s\n" % server)
+            return
+        sedcommand = "sed 's|%s|%s|g' /etc/shadow > /etc/shadow.new" % (r[0], newshadowline)
+        ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(sedcommand)
+        if ssh_stdout.channel.recv_exit_status() != 0:
+            with open(filename, "a") as f:
+                f.write("failed change: %s\n" % server)
+            return
+        ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("cp /etc/shadow.new /etc/shadow")
+        if ssh_stdout.channel.recv_exit_status() != 0:
+            with open(filename, "a") as f:
+                f.write("failed change: %s\n" % server)
+            return
+        with open(filename, "a") as f:
+            f.write("success: %s\n" % server)
+        return      
 
     def changeroot(self, sessionobj, server):
         self._sessionobj.setuplog('change_root',sessionobj)
