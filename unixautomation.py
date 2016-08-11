@@ -1,3 +1,4 @@
+#!/usr/bin/env python2
 import re
 import Queue
 import socket
@@ -5,6 +6,10 @@ import datetime
 import paramiko
 import threading
 import subprocess
+
+# environment variables
+# from creds import sox_servers
+sox_servers = []
 
 class UnixAutomation:
 
@@ -86,11 +91,70 @@ class UnixAutomation:
         exit_code,hostname = self.runcommand(sessionobj,"hostname")
         return exit_code,hostname
     
-    def threadcommand(self, sessionobj, tclass):
+    def changeaix(self, ssh, server, newpassword):
+        aixcommand = "echo 'root:%s' | chpasswd -c" % newpassword
+        exit_code,change_pass_command = self.runcommand(ssh, aixcommand)
+        if exit_code != 0: 
+            self.writeoutput(server, 'command execution failed')
+            return
+        self.writeoutput(server, 'successful')
+        return 
+
+    def changelinux(self, ssh, server, newpassword):
+        linuxcommand = "echo \"%s\" | passwd root --stdin" % newpassword
+        exit_code,change_pass_command = self.runcommand(ssh,linuxcommand)
+        if exit_code != 0: 
+            self.writeoutput(server, 'command execution failed')
+            return
+        self.writeoutput(server, 'successful')
+        return 
+
+    def changesolaris(self, ssh, server, newpassword):
+        opensslcommand = str("openssl passwd -1 %s" % newpassword).split()
+        passwordhash = subprocess.Popen(opensslcommand, stdout=subprocess.PIPE).communicate()[0].strip()
+        epoch = datetime.datetime.utcfromtimestamp(0)
+        today = datetime.datetime.today()
+        d = today - epoch
+        days = d.days
+
+        exit_code,root_shadow_line = self.runcommand(ssh, "grep root: /etc/shadow")
+        if exit_code != 0: 
+            self.writeoutput(server, 'command execution failed')
+            return
+        shadowarray = root_shadow_line[0].split(":")
+        exit_code,uname_line = ssh.runcommand(ssh, "uname -n")
+        if exit_code != 0: 
+            self.writeoutput(server, 'command execution failed')
+            return
+        hostname = uname_line[0]
+        if hostname in sox_servers:
+            maxage = "45"
+        else:
+            maxage = "99999"
+        newshadowline = "%s:%s:%s:%s:%s:%s:%s:%s:%s" % (shadowarray[0], passwordhash, days, shadowarray[3], maxage, shadowarray[5], shadowarray[6], shadowarray[7], shadowarray[8])
+        exit_code,cp_line = self.runcommand(ssh, "cp /etc/shadow /etc/shadow.bak")
+        if exit_code != 0: 
+            self.writeoutput(server, 'command execution failed')
+            return
+        sedcommand = "sed 's|%s|%s|g' /etc/shadow > /etc/shadow.new" % (root_shadow_line[0], newshadowline)
+        exit_code,replace_shadow_line = self.runcommand(ssh, sedcommand)
+        if exit_code != 0: 
+            self.writeoutput(server, 'command execution failed')
+            return
+        exit_code,replace_shadow_file = self.runcommand("cp /etc/shadow.new /etc/shadow")
+        if exit_code != 0: 
+            self.writeoutput(server, 'command execution failed')
+            return
+        self.writeoutput(server, 'successful')
+        return
+
+    def threadcommand(self, *args, **kwargs):
         queue = Queue.Queue()
-        threadclass = tclass
+        threadclass = kwargs.get('tclass')
+        sessionobj = kwargs.get('sessionobj')
+        exargs = kwargs
         for i in range(30):
-            t = threadclass(queue, sessionobj)
+            t = threadclass(queue, sessionobj, exargs)
             t.setDaemon(True)
             t.start()
         for server in self.serverlist():
@@ -100,7 +164,7 @@ class UnixAutomation:
 
 class GetHostname(threading.Thread, UnixAutomation):
 
-    def __init__(self, queue, sessionobj):
+    def __init__(self, queue, sessionobj, exargs):
         threading.Thread.__init__(self)
         self._queue = queue
         self._sessionobj = sessionobj
@@ -126,62 +190,23 @@ class GetHostname(threading.Thread, UnixAutomation):
 
 class ChangeRootPassword(threading.Thread, UnixAutomation):
 
-    def __init__(self, queue, sessionobj):
+    def __init__(self, queue, sessionobj, exargs):
         threading.Thread.__init__(self)
         self._queue = queue
         self._sessionobj = sessionobj
+        self._newpassword = exargs['newpassword']
 
     def run(self):
         while True:
             server = self._queue.get()
-            self.changeroot(self._sessionobj, server)
-            self._queue.task_done()
+            self.changeroot(self._sessionobj, server, self._newpassword)
+            self._queue.task_done()    
 
-    def changeaix(newpassword):
-        aixcommand = "echo 'root:%s' | chpasswd -c" % newpassword
-    def changelinux(newpassword):
-        linuxcommand = "echo \"%s\" | passwd root --stdin" % newpassword
-    def changesolaris(newpassword):
-        opensslcommand = str("openssl passwd -1 %s" % newpassword).split()
-        passwordhash = subprocess.Popen(opensslcommand, stdout=subprocess.PIPE).communicate()[0].strip()
-        epoch = datetime.datetime.utcfromtimestamp(0)
-        today = datetime.datetime.today()
-        d = today - epoch
-        days = d.days
-
-        ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("grep root: /etc/shadow")
-        r = ssh_stdout.read().splitlines()
-        r = [re.sub(' +', ' ', x.strip()) for x in r]
-        shadowarray = r[0].split(":")
-        ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("uname -n")
-        hostname = ssh_stdout.read().strip()
-        if hostname in sox_servers:
-            maxage = "45"
-        else:
-            maxage = "99999"
-        newshadowline = "%s:%s:%s:%s:%s:%s:%s:%s:%s" % (shadowarray[0], passwordhash, days, shadowarray[3], maxage, shadowarray[5], shadowarray[6], shadowarray[7], shadowarray[8])
-        ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("cp /etc/shadow /etc/shadow.bak")
-        if ssh_stdout.channel.recv_exit_status() != 0:
-            with open(filename, "a") as f:
-                f.write("failed change: %s\n" % server)
-            return
-        sedcommand = "sed 's|%s|%s|g' /etc/shadow > /etc/shadow.new" % (r[0], newshadowline)
-        ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(sedcommand)
-        if ssh_stdout.channel.recv_exit_status() != 0:
-            with open(filename, "a") as f:
-                f.write("failed change: %s\n" % server)
-            return
-        ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("cp /etc/shadow.new /etc/shadow")
-        if ssh_stdout.channel.recv_exit_status() != 0:
-            with open(filename, "a") as f:
-                f.write("failed change: %s\n" % server)
-            return
-        with open(filename, "a") as f:
-            f.write("success: %s\n" % server)
-        return      
-
-    def changeroot(self, sessionobj, server):
+    def changeroot(self, sessionobj, server, newpassword):
         self._sessionobj.setuplog('change_root',sessionobj)
+        if newpassword is None:
+            self._sessionobj.writeoutput(server, 'new password variable not set')
+            return
         ssh = self._sessionobj.login(server)
         if self._sessionobj.logintest(ssh) is 0:
             exit_code,uname = self._sessionobj.getuname(ssh)
@@ -190,11 +215,10 @@ class ChangeRootPassword(threading.Thread, UnixAutomation):
                 self._sessionobj.logout(ssh)
                 return
             if uname[0] == 'Linux':
-                changelinux(ssh)
+                self._sessionobj.changelinux(ssh, server, newpassword)
             elif uname[0] == 'AIX':
-                changeaix(ssh)
+                self._sessionobj.changeaix(ssh, server, newpassword)
             elif uname[0] == 'SunOS':
-                changesolaris(ssh)
-            # self._sessionobj.writeoutput(server, hostname)
+                self._sessionobj.changesolaris(ssh, server, newpassword)
             self._sessionobj.logout(ssh)            
         return
