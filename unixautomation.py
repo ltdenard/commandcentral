@@ -9,7 +9,9 @@ import subprocess
 # environment variables
 from settings import *
 
-#TODOs: HP-UX support and recognition 
+# TODOs: HP-UX support and recognition
+
+
 class UnixAutomation:
 
     def __init__(
@@ -64,13 +66,13 @@ class UnixAutomation:
                 pkey=self._privatekey)
             return ssh
         except (paramiko.ssh_exception.SSHException) as e:
-            self.writeoutput(server, [str(e)])
+            self.writeoutput(server, {'error': str(e)})
             return
         except socket.error as e:
-            self.writeoutput(server, [str(e)])
+            self.writeoutput(server, {'error': str(e)})
             return
         except Exception as e:
-            self.writeoutput(server, [str(e)])
+            self.writeoutput(server, {'error': str(e)})
             return
 
     def logintest(self, sessionobj):
@@ -107,44 +109,103 @@ class UnixAutomation:
         keys_list = []
         exit_code, hostname = self.gethostname(sessionobj)
         if exit_code != 0:
-            return 1,'command execution failed'
-        exit_code, sshkeys = self.runcommand(sessionobj, "cat ~/.ssh/authorized_keys")
+            return 1, 'command execution failed'
+        exit_code, sshkeys = self.runcommand(
+            sessionobj, "cat ~/.ssh/authorized_keys")
         if exit_code != 0:
-            return 1,'command execution failed'
+            return 1, 'command execution failed'
         r = list(set(sshkeys) - set(global_authorized_ssh_keys))
         if len(r) > 0:
             for key in r:
-                if (hostname[0].lower() + " : " + key) not in authorized_ssh_keys:
+                if (hostname[0].lower() + " : " +
+                        key) not in authorized_ssh_keys:
                     keys_list.append(key)
-        key_dict = { hostname[0] : keys_list }
+        key_dict = {hostname[0]: keys_list}
         return exit_code, key_dict
+
+    def pushsshkeys(self, sessionobj):
+        added_keys = []
+        exit_code, hostname = self.gethostname(sessionobj)
+        if exit_code != 0:
+            return 1, 'command execution failed'
+        exit_code, results = self.runcommand(sessionobj, 'mkdir -p ~/.ssh/')
+        exit_code, results = self.runcommand(
+            sessionobj, 'touch ~/.ssh/authorized_keys')
+        exit_code, sshkeys = self.runcommand(
+            sessionobj, "cat ~/.ssh/authorized_keys")
+        if exit_code != 0:
+            return 1, 'command execution failed'
+        for key in global_authorized_ssh_keys:
+            if key not in sshkeys:
+                exit_code, results = self.runcommand(
+                    sessionobj, 'echo "%s" >> ~/.ssh/authorized_keys' %
+                    key.strip())
+                if exit_code != 0:
+                    return 1, 'command execution failed'
+                added_keys.append(key.strip())
+        exit_code, results = self.runcommand(
+            sessionobj, 'chmod 644 ~/.ssh/authorized_keys')
+        exit_code, results = self.runcommand(sessionobj, 'chmod 700 ~/.ssh/')
+        exit_code, results = self.runcommand(
+            sessionobj, 'restorecon -Rv ~/.ssh/')
+        key_dict = {hostname[0]: added_keys}
+        return 0, key_dict
+
+    def redosshkeys(self, sessionobj):
+        exit_code, hostname = self.gethostname(sessionobj)
+        if exit_code != 0:
+            return 1, 'command execution failed'
+        first = True
+        for key in global_authorized_ssh_keys:
+            if first:
+                exit_code, sshkeys = self.runcommand(
+                    sessionobj, 'echo "%s" > ~/.ssh/authorized_keys' %
+                    key.strip())
+                if exit_code != 0:
+                    return 1, 'command execution failed'
+                first = False
+            else:
+                exit_code, sshkeys = self.runcommand(
+                    sessionobj, 'echo "%s" >> ~/.ssh/authorized_keys' %
+                    key.strip())
+                if exit_code != 0:
+                    return 1, 'command execution failed'
+        name_check = '%s ' % hostname[0].lower()
+        for wkey in authorized_ssh_keys:
+            if name_check in wkey:
+                exit_code, sshkeys = self.runcommand(
+                    sessionobj, 'echo "%s" >> ~/.ssh/authorized_keys' %
+                    wkey.split(' : ')[1])
+                if exit_code != 0:
+                    return 1, 'command execution failed'
+        return 0, 'successful'
 
     def changeaix(self, ssh, server, newpassword):
         aixcommand = "echo 'root:%s' | chpasswd -c" % newpassword
         exit_code, change_pass_command = self.runcommand(ssh, aixcommand)
         if exit_code != 0:
-            return 1,'command execution failed'
-        return 0,'successful'
+            return 1, 'command execution failed'
+        return 0, 'successful'
 
     def changelinux(self, ssh, server, newpassword):
         linuxcommand = "echo \"%s\" | passwd root --stdin" % newpassword
         altlinuxcommand = "echo 'root:%s' | chpasswd" % newpassword
         exit_code, release_version = self.getrelease(ssh)
         if exit_code != 0:
-            return 1,'command execution failed'
+            return 1, 'command execution failed'
         if any(
-            "Ubuntu" in s for s in release_version) or any(
-            "debian" in s for s in release_version) or any(
-            "arch" in s for s in release_version):
+                "Ubuntu" in s for s in release_version) or any(
+                "debian" in s for s in release_version) or any(
+                "arch" in s for s in release_version):
             exit_code, change_pass_command = self.runcommand(
                 ssh, altlinuxcommand)
             if exit_code != 0:
-                return 1,'command execution failed'
+                return 1, 'command execution failed'
         else:
             exit_code, change_pass_command = self.runcommand(ssh, linuxcommand)
             if exit_code != 0:
-                return 1,'command execution failed'
-        return 0,'successful'
+                return 1, 'command execution failed'
+        return 0, 'successful'
 
     def changesolaris(self, ssh, server, newpassword):
         opensslcommand = str("openssl passwd -1 %s" % newpassword).split()
@@ -163,42 +224,42 @@ class UnixAutomation:
         shadowarray = root_shadow_line[0].split(":")
         exit_code, uname_line = ssh.runcommand(ssh, "uname -n")
         if exit_code != 0:
-            return 1,'command execution failed'
+            return 1, 'command execution failed'
         hostname = uname_line[0]
         if hostname in fortyfiveday_expire_servers:
             maxage = "45"
         else:
             maxage = "99999"
         newshadowline = "%s:%s:%s:%s:%s:%s:%s:%s:%s" % (
-            shadowarray[0], 
-            passwordhash, 
+            shadowarray[0],
+            passwordhash,
             days,
-            shadowarray[3], 
-            maxage, 
-            shadowarray[5], 
-            shadowarray[6], 
-            shadowarray[7], 
+            shadowarray[3],
+            maxage,
+            shadowarray[5],
+            shadowarray[6],
+            shadowarray[7],
             shadowarray[8])
         exit_code, cp_line = self.runcommand(
             ssh, "cp /etc/shadow /etc/shadow.bak")
         if exit_code != 0:
-            return 1,'command execution failed'
+            return 1, 'command execution failed'
         sedcommand = "sed 's|%s|%s|g' /etc/shadow > /etc/shadow.new" % (
             root_shadow_line[0], newshadowline)
         exit_code, replace_shadow_line = self.runcommand(ssh, sedcommand)
         if exit_code != 0:
-            return 1,'command execution failed'
+            return 1, 'command execution failed'
         exit_code, replace_shadow_file = self.runcommand(
             "cp /etc/shadow.new /etc/shadow")
         if exit_code != 0:
-            return 1,'command execution failed'
+            return 1, 'command execution failed'
         self.writeoutput(server, 'successful')
-        return 0,'successful'
+        return 0, 'successful'
 
     def changeroot(self, ssh, server, newpassword):
         exit_code, uname = self.getuname(ssh)
         if exit_code != 0:
-            return 1,'command execution failed'
+            return 1, 'command execution failed'
         if uname[0] == 'Linux':
             exit_code, results = self.changelinux(ssh, server, newpassword)
         elif uname[0] == 'AIX':
@@ -275,10 +336,12 @@ class ChangeRootPassword(threading.Thread, UnixAutomation):
             return
         ssh = self._sessionobj.login(server)
         if self._sessionobj.logintest(ssh) is 0:
-            exit_code, results = self._sessionobj.changeroot(ssh, server, newpassword)
+            exit_code, results = self._sessionobj.changeroot(
+                ssh, server, newpassword)
             self._sessionobj.writeoutput(server, results)
             self._sessionobj.logout(ssh)
         return
+
 
 class PullSSHKeys(threading.Thread, UnixAutomation):
 
@@ -302,3 +365,25 @@ class PullSSHKeys(threading.Thread, UnixAutomation):
             self._sessionobj.logout(ssh)
         return
 
+
+class PushSSHKeys(threading.Thread, UnixAutomation):
+
+    def __init__(self, queue, sessionobj, exargs):
+        threading.Thread.__init__(self)
+        self._queue = queue
+        self._sessionobj = sessionobj
+
+    def run(self):
+        while True:
+            server = self._queue.get()
+            self.push_ssh_keys(self._sessionobj, server)
+            self._queue.task_done()
+
+    def push_ssh_keys(self, sessionobj, server):
+        self._sessionobj.setuplog('push_ssh_keys', sessionobj)
+        ssh = self._sessionobj.login(server)
+        if self._sessionobj.logintest(ssh) is 0:
+            exit_code, results = self._sessionobj.pushsshkeys(ssh)
+            self._sessionobj.writeoutput(server, results)
+            self._sessionobj.logout(ssh)
+        return
