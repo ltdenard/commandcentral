@@ -63,7 +63,8 @@ class UnixAutomation:
                 server,
                 username=self._username,
                 password=self._password,
-                pkey=self._privatekey)
+                pkey=self._privatekey,
+                timeout=60)
             return ssh
         except (paramiko.ssh_exception.SSHException) as e:
             self.writeoutput(server, {'error': str(e)})
@@ -85,13 +86,17 @@ class UnixAutomation:
         sessionobj.close()
 
     def runcommand(self, sessionobj, execmd):
-        ssh_stdin, ssh_stdout, ssh_stderr = sessionobj.exec_command(execmd)
-        return_array = [re.sub(' +', ' ', x.strip())
-                        for x in ssh_stdout.read().splitlines()]
-        exit_code = 0
-        if ssh_stdout.channel.recv_exit_status() != 0:
-            exit_code = 1
-        return exit_code, return_array
+        try:
+            ssh_stdin, ssh_stdout, ssh_stderr = sessionobj.exec_command(
+                execmd, timeout=1800)
+            return_array = [re.sub(' +', ' ', x.strip())
+                            for x in ssh_stdout.read().splitlines()]
+            exit_code = 0
+            if ssh_stdout.channel.recv_exit_status() != 0:
+                exit_code = 1
+            return exit_code, return_array
+        except:
+            return 1, ['error']
 
     def getuname(self, sessionobj):
         exit_code, uname = self.runcommand(sessionobj, "uname")
@@ -101,9 +106,23 @@ class UnixAutomation:
         exit_code, release = self.runcommand(sessionobj, "cat /etc/*release")
         return exit_code, release
 
+    def getoslevel(self, sessionobj):
+        exit_code, release = self.runcommand(sessionobj, "oslevel")
+        return exit_code, release
+
     def gethostname(self, sessionobj):
         exit_code, hostname = self.runcommand(sessionobj, "hostname")
         return exit_code, hostname
+
+    def getuserid(self, sessionobj, user):
+        idcmd = "id %s" % user
+        exit_code, userid = self.runcommand(sessionobj, idcmd)
+        return exit_code, userid
+
+    def lockuserid(self, sessionobj, user):
+        lockcmd = "passwd -l %s" % user
+        exit_code, lockuser = self.runcommand(sessionobj, idcmd)
+        return exit_code, lockuser
 
     def getsshkeys(self, sessionobj):
         keys_list = []
@@ -271,6 +290,217 @@ class UnixAutomation:
             results = 'command execution failed'
         return exit_code, results
 
+    def enablesnmplinux(self, ssh, snmpuser, snmppass):
+        today = datetime.datetime.today().strftime('%Y-%m-%d-%s')
+        exit_code, release_version = self.getrelease(ssh)
+        if exit_code != 0:
+            return 1, 'command execution failed'
+        if any(
+                "Red Hat Enterprise Linux" in s for s in release_version) or any(
+                "CentOS" in s for s in release_version):
+            exit_code, install_command = self.runcommand(
+                ssh, "yum -y install net-snmp net-snmp-utils net-snmp-devel")
+            if exit_code != 0:
+                return 1, 'command execution failed'
+            exit_code, backup_command = self.runcommand(
+                ssh, "cp /etc/snmp/snmpd.conf /etc/snmp/snmpd.conf.%s" % today)
+            if exit_code != 0:
+                return 1, 'command execution failed'
+            exit_code, service_stop_command = self.runcommand(
+                ssh, "service snmpd stop")
+            if exit_code != 0:
+                return 1, 'command execution failed'
+            exit_code, allow_user_command = self.runcommand(
+                ssh, "echo 'rouser %s' > /etc/snmp/snmpd.conf" % snmpuser)
+            if exit_code != 0:
+                return 1, 'command execution failed'
+            exit_code, create_user_command = self.runcommand(
+                ssh, "echo 'createUser %s MD5 \"%s\" DES' >> /var/lib/net-snmp/snmpd.conf" %
+                (snmpuser, snmppass))
+            if exit_code != 0:
+                return 1, 'command execution failed'
+            exit_code, sleep_command = self.runcommand(
+                ssh, "sleep 1")
+            if exit_code != 0:
+                return 1, 'command execution failed'
+            exit_code, start_enable_command = self.runcommand(
+                ssh, "service snmpd start && chkconfig snmpd on || systemctl enable snmpd && systemctl start snmpd")
+            if exit_code != 0:
+                return 1, 'command execution failed'
+        else:
+            exit_code, change_pass_command = self.runcommand(ssh, linuxcommand)
+            if exit_code != 0:
+                return 1, 'command execution failed'
+        return 0, 'successful'
+
+    def enablesnmpaix(self, ssh, snmpuser, snmppass):
+        today = datetime.datetime.today().strftime('%Y-%m-%d-%s')
+        exit_code, release_version = self.getoslevel(ssh)
+        if exit_code != 0:
+            return 1, 'command execution failed'
+        if any("4.3.3.0" not in s for s in release_version):
+            exit_code, backup_command = self.runcommand(
+                ssh, "cp /etc/snmpdv3.conf /etc/snmpdv3.conf.%s" % today)
+            if exit_code != 0:
+                return 1, 'command execution failed'
+            exit_code, backup_command = self.runcommand(
+                ssh, "cp /etc/snmpd.conf /etc/snmpd.conf.%s" % today)
+            if exit_code != 0:
+                return 1, 'command execution failed'
+            exit_code, service_stop_command = self.runcommand(
+                ssh, "stopsrc -s snmpd")
+            if exit_code != 0:
+                return 1, 'command execution failed'
+            exit_code, authkey_command = self.runcommand(
+                ssh, "pwtokey -e -p HMAC-MD5 -u auth %s $(cat /etc/snmpd.boots | cut -f2 -d' ') | tail -2 | head -1" %
+                snmppass)
+            if exit_code != 0:
+                return 1, 'command execution failed'
+            authkey = authkey_command[0]
+            if len(authkey) < 32:
+                return 1, 'failed to generate authkey'
+            snmp_file = [
+                'logging         file=/usr/tmp/snmpd.log         enabled',
+                'logging         size=100000                     level=0',
+                '',
+                '#community       public',
+                '#community       private 127.0.0.1 255.255.255.255 readWrite',
+                '#community       system  127.0.0.1 255.255.255.255 readWrite 1.17.2',
+                '',
+                'view            1.17.2          system enterprises view',
+                '',
+                'trap            public          127.0.0.1       1.2.3   fe      # loopback',
+                '',
+                '#snmpd          maxpacket=1024 querytimeout=120 smuxtimeout=60',
+                '',
+                'smux            1.3.6.1.4.1.2.3.1.2.1.2         gated_password  # gated',
+                'smux            1.3.6.1.4.1.2.3.1.2.2.1.1.2     dpid_password   #dpid',
+                '',
+                'smux            1.3.6.1.4.1.2.3.1.2.1.3         xmtopas_pw      # xmtopas',
+            ]
+            snmpv3_file = [
+                'VACM_GROUP group1 SNMPv1  %s  -' %
+                snmppass,
+                '',
+                'VACM_VIEW defaultView        internet                   - included -',
+                '',
+                '# exclude snmpv3 related MIBs from the default view',
+                'VACM_VIEW defaultView        snmpModules                - excluded -',
+                'VACM_VIEW defaultView        1.3.6.1.6.3.1.1.4          - included -',
+                'VACM_VIEW defaultView        1.3.6.1.6.3.1.1.5          - included -',
+                '',
+                '# exclude aixmibd managed MIBs from the default view',
+                'VACM_VIEW defaultView        1.3.6.1.4.1.2.6.191        - excluded -',
+                '',
+                'VACM_ACCESS  group1 - - noAuthNoPriv SNMPv1  defaultView - defaultView -',
+                '',
+                'NOTIFY notify1 traptag trap -',
+                '',
+                'TARGET_ADDRESS Target1 UDP 127.0.0.1       traptag trapparms1 - - -',
+                '',
+                'TARGET_PARAMETERS trapparms1 SNMPv1  SNMPv1  %s  noAuthNoPriv -' %
+                snmppass,
+                '',
+                'COMMUNITY %s    %s     noAuthNoPriv 127.0.0.1         127.0.0.1         -' %
+                (snmppass,
+                 snmppass),
+                '',
+                'DEFAULT_SECURITY no-access - -',
+                '',
+                'logging         file=/usr/tmp/snmpdv3.log       enabled',
+                'logging         size=100000                     level=0',
+                '',
+                'smux            1.3.6.1.4.1.2.3.1.2.1.2         gated_password  # gated',
+                '',
+                'smux 1.3.6.1.4.1.2.3.1.2.3.1.1 muxatmd_password #muxatmd',
+                '# SNMP v3',
+                'USM_USER %s - HMAC-MD5  %s - - L -' %
+                (snmpuser,
+                 authkey),
+                'VACM_GROUP solarGrp USM %s -' %
+                snmpuser,
+                'VACM_ACCESS solarGrp - - AuthNoPriv USM bigView - - -',
+                'VACM_VIEW bigView internet - included -',
+                'VACM_GROUP director_group SNMPv2c %s -' %
+                snmppass,
+                'VACM_ACCESS director_group - - noAuthNoPriv SNMPv2c defaultView - defaultView -',
+            ]
+            for i, line in enumerate(snmp_file):
+                if i == 0:
+                    exit_code, start_enable_command = self.runcommand(
+                        ssh, "echo \"%s\" > /etc/snmpd.conf" % line)
+                    if exit_code != 0:
+                        return 1, 'command execution failed'
+                else:
+                    exit_code, start_enable_command = self.runcommand(
+                        ssh, "echo \"%s\" >> /etc/snmpd.conf" % line)
+                    if exit_code != 0:
+                        return 1, 'command execution failed'
+            for i, line in enumerate(snmpv3_file):
+                if i == 0:
+                    exit_code, start_enable_command = self.runcommand(
+                        ssh, "echo \"%s\" > /etc/snmpdv3.conf" % line)
+                    if exit_code != 0:
+                        return 1, 'command execution failed'
+                else:
+                    exit_code, start_enable_command = self.runcommand(
+                        ssh, "echo \"%s\" >> /etc/snmpdv3.conf" % line)
+                    if exit_code != 0:
+                        return 1, 'command execution failed'
+
+            exit_code, start_enable_command = self.runcommand(
+                ssh, "startsrc -s snmpd")
+            if exit_code != 0:
+                return 1, 'command execution failed'
+        else:
+            return 1, 'command execution failed'
+        return 0, 'successful'
+
+    def enablesnmpsolaris(self, ssh, snmpuser, snmppass):
+        today = datetime.datetime.today().strftime('%Y-%m-%d-%s')
+        exit_code, enable_command = self.runcommand(
+            ssh, "svcadm enable svc:/application/management/net-snmp:default")
+        if exit_code != 0:
+            return 1, 'command execution failed'
+        exit_code, sleep_command = self.runcommand(
+            ssh, "sleep 1")
+        if exit_code != 0:
+            return 1, 'command execution failed'
+        exit_code, disable_command = self.runcommand(
+            ssh, "svcadm disable -t svc:/application/management/net-snmp:default")
+        if exit_code != 0:
+            return 1, 'command execution failed'
+        exit_code, backup_command = self.runcommand(
+            ssh, "cp /etc/net-snmp/snmp/snmpd.conf  /etc/net-snmp/snmp/snmpd.conf." + today)
+        if exit_code != 0:
+            return 1, 'command execution failed'
+        exit_code, create_ro_user_command = self.runcommand(
+            ssh, "echo 'rouser %s' > /etc/net-snmp/snmp/snmpd.conf" % snmpuser)
+        exit_code, create_user_command = self.runcommand(
+            ssh, "echo 'createUser %s MD5 \"%s\" DES' >> /var/net-snmp/snmpd.conf" %
+            (snmpuser, snmppass))
+        exit_code, start_enable_command = self.runcommand(
+            ssh, "svcadm enable svc:/application/management/net-snmp:default")
+        if exit_code != 0:
+            return 1, 'command execution failed'
+        return 0, 'successful'
+
+    def enablesnmp(self, ssh, snmpuser, snmppass):
+        exit_code, uname = self.getuname(ssh)
+        if exit_code != 0:
+            return 1, 'command execution failed'
+        if uname[0] == 'Linux':
+            exit_code, results = self.enablesnmplinux(ssh, snmpuser, snmppass)
+        elif uname[0] == 'AIX':
+            exit_code, results = self.enablesnmpaix(ssh, snmpuser, snmppass)
+        elif uname[0] == 'SunOS':
+            exit_code, results = self.enablesnmpsolaris(
+                ssh, snmpuser, snmppass)
+        else:
+            exit_code = 1
+            results = 'command execution failed'
+        return exit_code, results
+
     def threadcommand(self, *args, **kwargs):
         queue = Queue.Queue()
         threadclass = kwargs.get('tclass')
@@ -384,6 +614,102 @@ class PushSSHKeys(threading.Thread, UnixAutomation):
         ssh = self._sessionobj.login(server)
         if self._sessionobj.logintest(ssh) is 0:
             exit_code, results = self._sessionobj.pushsshkeys(ssh)
+            self._sessionobj.writeoutput(server, results)
+            self._sessionobj.logout(ssh)
+        return
+
+
+class GetUserID(threading.Thread, UnixAutomation):
+
+    def __init__(self, queue, sessionobj, exargs):
+        threading.Thread.__init__(self)
+        self._queue = queue
+        self._sessionobj = sessionobj
+        self._user = exargs['user']
+
+    def run(self):
+        while True:
+            server = self._queue.get()
+            self.get_user_id(self._sessionobj, server, self._user)
+            self._queue.task_done()
+
+    def get_user_id(self, sessionobj, server, user):
+        self._sessionobj.setuplog('user_id', sessionobj)
+        if user is None:
+            self._sessionobj.writeoutput(
+                server, 'user variable not set')
+            return
+        ssh = self._sessionobj.login(server)
+        if self._sessionobj.logintest(ssh) is 0:
+            exit_code, results = self._sessionobj.getuserid(
+                ssh, user)
+            self._sessionobj.writeoutput(server, results)
+            self._sessionobj.logout(ssh)
+        return
+
+
+class LockUserID(threading.Thread, UnixAutomation):
+
+    def __init__(self, queue, sessionobj, exargs):
+        threading.Thread.__init__(self)
+        self._queue = queue
+        self._sessionobj = sessionobj
+        self._user = exargs['user']
+
+    def run(self):
+        while True:
+            server = self._queue.get()
+            self.lock_user_id(self._sessionobj, server, self._user)
+            self._queue.task_done()
+
+    def lock_user_id(self, sessionobj, server, user):
+        self._sessionobj.setuplog('user_id', sessionobj)
+        if user is None:
+            self._sessionobj.writeoutput(
+                server, 'user variable not set')
+            return
+        ssh = self._sessionobj.login(server)
+        if self._sessionobj.logintest(ssh) is 0:
+            exit_code, results = self._sessionobj.lockuserid(
+                ssh, user)
+            self._sessionobj.writeoutput(server, results)
+            self._sessionobj.logout(ssh)
+        return
+
+
+class EnableSNMP(threading.Thread, UnixAutomation):
+
+    def __init__(self, queue, sessionobj, exargs):
+        threading.Thread.__init__(self)
+        self._queue = queue
+        self._sessionobj = sessionobj
+        self._snmpuser = exargs['snmpuser']
+        self._snmppass = exargs['snmppass']
+
+    def run(self):
+        while True:
+            server = self._queue.get()
+            self.enable_snmp(
+                self._sessionobj,
+                server,
+                self._snmpuser,
+                self._snmppass)
+            self._queue.task_done()
+
+    def enable_snmp(self, sessionobj, server, snmpuser, snmppass):
+        self._sessionobj.setuplog('enable_snmp', sessionobj)
+        if snmpuser is None:
+            self._sessionobj.writeoutput(
+                server, 'snmp user variable not set')
+            return
+        if snmppass is None:
+            self._sessionobj.writeoutput(
+                server, 'snmp pass variable not set')
+            return
+        ssh = self._sessionobj.login(server)
+        if self._sessionobj.logintest(ssh) is 0:
+            exit_code, results = self._sessionobj.enablesnmp(
+                ssh, snmpuser, snmppass)
             self._sessionobj.writeoutput(server, results)
             self._sessionobj.logout(ssh)
         return
