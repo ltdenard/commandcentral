@@ -9,10 +9,30 @@ import subprocess
 # environment variables
 from settings import *
 
-# TODOs: HP-UX support and recognition
-
 
 class UnixAutomation:
+    """
+    This module was design with Unix and Linux systems administrators in mind.
+    It strives to make common everyday task a little less time consuming and
+    tried to automate command task as much as possible.
+
+    Args:
+
+        username (str):  This is the username the scripts will use to login.
+        password (str): This is the password for the user account giveen.
+        keyfile (str): This is the path to the key file
+        keypass (str): This is the password to the ssh key file.
+        basedir (str): This is the path to the folder that houses this code base.
+        serverlistfile (str): This is to file path to the list of servers.
+            it's assumed that only one IP or DNS name will be on each line.
+            This argument is also optional unless the threadcommand function
+            is used. Default is None.
+        logfile (None): Default is Node as this is only used by extended classes. This
+            is automatically setup by the extended classes.
+        outputfile (None): Default is Node as this is only used by extended classes. This
+            is automatically setup by the extended classes.
+
+    """
 
     def __init__(
             self,
@@ -22,7 +42,6 @@ class UnixAutomation:
             keyfile,
             keypass,
             basedir):
-        self._serverlistfile = serverlistfile
         self._username = username
         self._password = password
         self._keypassword = keypass
@@ -31,21 +50,43 @@ class UnixAutomation:
             self._keyfilepath, password=self._keypassword)
         self._logfolder = basedir + 'logs/'
         self._tmpfolder = basedir + 'tmp/'
+        self._serverlistfile = serverlistfile
         self._logfile = None
         self._outputfile = None
 
     def serverlist(self):
+        """
+        This function strictly takes the serverlist file path and pulls it
+        all in as one single array. It then returns that array of server items.
+
+        Returns:
+            Array: if successfully will return an array of string elements.
+        """
         with open(self._serverlistfile) as f:
             serverlist = f.read().splitlines()
         return serverlist
 
     def writeoutput(self, server, array):
+        """
+        This function will write the array to a file as a csv if the
+        outputfile variable is set.
+
+        Returns:
+            None
+        """
         if self._outputfile is not None:
             with open(self._outputfile, "a") as f:
                 f.write("%s,%s\n" % (server, array))
         return
 
     def setuplog(self, logpreface=None, sessionobj=None):
+        """
+        This function will write paramiko logs to a file if the
+        logfile variable is set.
+
+        Returns:
+            None
+        """
         if logpreface is not None:
             filedate = datetime.datetime.today().strftime('%Y-%m-%d-%s')
             filename = logpreface + '_' + filedate + ".csv"
@@ -55,6 +96,12 @@ class UnixAutomation:
         return
 
     def login(self, server):
+        """
+        This function handles the login to systems.
+
+        Returns:
+            ssh object or None
+        """
         self.setuplog()
         try:
             ssh = paramiko.SSHClient()
@@ -77,15 +124,38 @@ class UnixAutomation:
             return
 
     def logintest(self, sessionobj):
+        """
+        This function test to see if the connection is alive or dead.
+
+        Return:
+            0 if alive
+            1 if dead
+        """
         if sessionobj is None:
             return 1
         else:
             return 0
 
     def logout(self, sessionobj):
+        """
+        This function closes any open ssh sessions
+
+        Return:
+            None
+        """
         sessionobj.close()
+        return
 
     def runcommand(self, sessionobj, execmd):
+        """
+        This function runs a single line command. If the command takes longer that
+        1800 seconds to run the command, it will time out. It then returns a tuple
+        with the status and stdout of the command in an array.
+
+        Return:
+            tuple: (exit_code, return_array)
+
+        """
         try:
             ssh_stdin, ssh_stdout, ssh_stderr = sessionobj.exec_command(
                 execmd, timeout=1800)
@@ -99,32 +169,88 @@ class UnixAutomation:
             return 1, ['error']
 
     def getuname(self, sessionobj):
+        """
+        This function runs the uname command and returns the exit_code and
+        the stdout of the command as an array.
+
+        Return:
+            tuple: (exit_code, return_array)
+
+        """
         exit_code, uname = self.runcommand(sessionobj, "uname")
         return exit_code, uname
 
     def getrelease(self, sessionobj):
+        """
+        This function cats the release info of a system command and returns the exit_code and
+        the stdout of the command as an array.
+
+        Return:
+            tuple: (exit_code, return_array)
+        """
         exit_code, release = self.runcommand(sessionobj, "cat /etc/*release")
         return exit_code, release
 
     def getoslevel(self, sessionobj):
+        """
+        This function runs the oslevel command and returns the exit_code and
+        the stdout of the command as an array.
+
+        Return:
+            tuple: (exit_code, return_array)
+
+        """
         exit_code, release = self.runcommand(sessionobj, "oslevel")
         return exit_code, release
 
     def gethostname(self, sessionobj):
+        """
+        This function runs the hostname command and returns the exit_code and
+        the stdout of the command as an array.
+
+        Return:
+            tuple: (exit_code, return_array)
+
+        """
         exit_code, hostname = self.runcommand(sessionobj, "hostname")
         return exit_code, hostname
 
     def getuserid(self, sessionobj, user):
+        """
+        This function runs the id command on a user and returns the exit_code and
+        the stdout of the command as an array.
+
+        Return:
+            tuple: (exit_code, return_array)
+
+        """
         idcmd = "id %s" % user
         exit_code, userid = self.runcommand(sessionobj, idcmd)
         return exit_code, userid
 
     def lockuserid(self, sessionobj, user):
+        """
+        This function runs the passwd command to lock a user and returns the exit_code and
+        the stdout of the command as an array.
+
+        Return:
+            tuple: (exit_code, return_array)
+
+        """
         lockcmd = "passwd -l %s" % user
         exit_code, lockuser = self.runcommand(sessionobj, idcmd)
         return exit_code, lockuser
 
     def getsshkeys(self, sessionobj):
+        """
+        This function runs the cat command on the authorized_keys file
+        and returns the exit_code and any ssh keys in the file that are
+        not approved.
+
+        Return:
+            tuple: (exit_code, key dictionary)
+
+        """
         keys_list = []
         exit_code, hostname = self.gethostname(sessionobj)
         if exit_code != 0:
@@ -143,6 +269,16 @@ class UnixAutomation:
         return exit_code, key_dict
 
     def pushsshkeys(self, sessionobj):
+        """
+        This function runs the cat command on the authorized_keys file
+        and adds any ssh keys that may be missing. It also applies the correct
+        file permissions and standard selinux policies. It then returns
+        the exit code and any keys that were added.
+
+        Return:
+            tuple: (exit_code, key dictionary)
+
+        """
         added_keys = []
         exit_code, hostname = self.gethostname(sessionobj)
         if exit_code != 0:
@@ -171,6 +307,16 @@ class UnixAutomation:
         return 0, key_dict
 
     def redosshkeys(self, sessionobj):
+        """
+        This function runs the cat command on the authorized_keys file
+        and adds any ssh keys that may be missing. It also applies the correct
+        file permissions and standard selinux policies. It then returns
+        the exit code and any keys that were added.
+
+        Return:
+            tuple: (exit_code, key dictionary)
+
+        """
         exit_code, hostname = self.gethostname(sessionobj)
         if exit_code != 0:
             return 1, 'command execution failed'
@@ -200,6 +346,14 @@ class UnixAutomation:
         return 0, 'successful'
 
     def changeaix(self, ssh, server, newpassword):
+        """
+        This function runs the command to change the root password
+        on AIX systems.
+
+        Return:
+            tuple: (exit_code, status)
+
+        """
         aixcommand = "echo 'root:%s' | chpasswd -c" % newpassword
         exit_code, change_pass_command = self.runcommand(ssh, aixcommand)
         if exit_code != 0:
@@ -207,6 +361,14 @@ class UnixAutomation:
         return 0, 'successful'
 
     def changelinux(self, ssh, server, newpassword):
+        """
+        This function runs the command to change the root password
+        on Linux systems.
+
+        Return:
+            tuple: (exit_code, status)
+
+        """
         linuxcommand = "echo \"%s\" | passwd root --stdin" % newpassword
         altlinuxcommand = "echo 'root:%s' | chpasswd" % newpassword
         exit_code, release_version = self.getrelease(ssh)
@@ -227,6 +389,14 @@ class UnixAutomation:
         return 0, 'successful'
 
     def changesolaris(self, ssh, server, newpassword):
+        """
+        This function runs the command to change the root password
+        on Solaris systems.
+
+        Return:
+            tuple: (exit_code, status)
+
+        """
         opensslcommand = str("openssl passwd -1 %s" % newpassword).split()
         passwordhash = subprocess.Popen(
             opensslcommand, stdout=subprocess.PIPE).communicate()[0].strip()
@@ -276,6 +446,14 @@ class UnixAutomation:
         return 0, 'successful'
 
     def changeroot(self, ssh, server, newpassword):
+        """
+        This function runs the correct command to change the root password
+        on systems
+
+        Return:
+            tuple: (exit_code, status)
+
+        """
         exit_code, uname = self.getuname(ssh)
         if exit_code != 0:
             return 1, 'command execution failed'
@@ -291,6 +469,14 @@ class UnixAutomation:
         return exit_code, results
 
     def enablesnmplinux(self, ssh, snmpuser, snmppass):
+        """
+        This function runs the commands that will enable snmp version 3
+        on systems that are RHEL or Centos based.
+
+        Return:
+            tuple: (exit_code, status)
+
+        """
         today = datetime.datetime.today().strftime('%Y-%m-%d-%s')
         exit_code, release_version = self.getrelease(ssh)
         if exit_code != 0:
@@ -334,6 +520,14 @@ class UnixAutomation:
         return 0, 'successful'
 
     def enablesnmpaix(self, ssh, snmpuser, snmppass):
+        """
+        This function runs the commands that will enable snmp version 3
+        on systems that are AIX based.
+
+        Return:
+            tuple: (exit_code, status)
+
+        """
         today = datetime.datetime.today().strftime('%Y-%m-%d-%s')
         exit_code, release_version = self.getoslevel(ssh)
         if exit_code != 0:
@@ -457,6 +651,14 @@ class UnixAutomation:
         return 0, 'successful'
 
     def enablesnmpsolaris(self, ssh, snmpuser, snmppass):
+        """
+        This function runs the commands that will enable snmp version 3
+        on systems that are Solaris based.
+
+        Return:
+            tuple: (exit_code, status)
+
+        """
         today = datetime.datetime.today().strftime('%Y-%m-%d-%s')
         exit_code, enable_command = self.runcommand(
             ssh, "svcadm enable svc:/application/management/net-snmp:default")
@@ -486,6 +688,14 @@ class UnixAutomation:
         return 0, 'successful'
 
     def enablesnmp(self, ssh, snmpuser, snmppass):
+        """
+        This function runs the commands that appropiate command to enable snmp version 3
+        on systems.
+
+        Return:
+            tuple: (exit_code, status)
+
+        """
         exit_code, uname = self.getuname(ssh)
         if exit_code != 0:
             return 1, 'command execution failed'
@@ -502,9 +712,18 @@ class UnixAutomation:
         return exit_code, results
 
     def threadcommand(self, *args, **kwargs):
+        """
+        This function allows one to thread other classes and preform functions
+        at once. It sets up the log file and names the file with the class being
+        threaded with the date and time.
+
+        Return:
+            outputfile path
+        """
         queue = Queue.Queue()
         threadclass = kwargs.get('tclass')
         sessionobj = kwargs.get('sessionobj')
+        self.setuplog(str(threadclass.__name__), sessionobj)
         exargs = kwargs
         for i in range(30):
             t = threadclass(queue, sessionobj, exargs)
@@ -517,6 +736,10 @@ class UnixAutomation:
 
 
 class GetHostname(threading.Thread, UnixAutomation):
+    """
+    This class extends the base unixautomation class and then
+    allows the threading of hostname function.
+    """
 
     def __init__(self, queue, sessionobj, exargs):
         threading.Thread.__init__(self)
@@ -530,7 +753,6 @@ class GetHostname(threading.Thread, UnixAutomation):
             self._queue.task_done()
 
     def hostname(self, sessionobj, server):
-        self._sessionobj.setuplog('hostname_pull', sessionobj)
         ssh = self._sessionobj.login(server)
         if self._sessionobj.logintest(ssh) is 0:
             exit_code, hostname = self._sessionobj.gethostname(ssh)
@@ -545,6 +767,10 @@ class GetHostname(threading.Thread, UnixAutomation):
 
 
 class ChangeRootPassword(threading.Thread, UnixAutomation):
+    """
+    This class extends the base unixautomation class and then
+    allows the threading of root password changing function.
+    """
 
     def __init__(self, queue, sessionobj, exargs):
         threading.Thread.__init__(self)
@@ -559,7 +785,6 @@ class ChangeRootPassword(threading.Thread, UnixAutomation):
             self._queue.task_done()
 
     def change_root(self, sessionobj, server, newpassword):
-        self._sessionobj.setuplog('change_root', sessionobj)
         if newpassword is None:
             self._sessionobj.writeoutput(
                 server, 'new password variable not set')
@@ -574,6 +799,10 @@ class ChangeRootPassword(threading.Thread, UnixAutomation):
 
 
 class PullSSHKeys(threading.Thread, UnixAutomation):
+    """
+    This class extends the base unixautomation class and then
+    allows the threading of pull ssh key function.
+    """
 
     def __init__(self, queue, sessionobj, exargs):
         threading.Thread.__init__(self)
@@ -587,7 +816,6 @@ class PullSSHKeys(threading.Thread, UnixAutomation):
             self._queue.task_done()
 
     def pull_ssh_keys(self, sessionobj, server):
-        self._sessionobj.setuplog('pull_ssh_keys', sessionobj)
         ssh = self._sessionobj.login(server)
         if self._sessionobj.logintest(ssh) is 0:
             exit_code, results = self._sessionobj.getsshkeys(ssh)
@@ -597,6 +825,10 @@ class PullSSHKeys(threading.Thread, UnixAutomation):
 
 
 class PushSSHKeys(threading.Thread, UnixAutomation):
+    """
+    This class extends the base unixautomation class and then
+    allows the threading of push ssh keys function.
+    """
 
     def __init__(self, queue, sessionobj, exargs):
         threading.Thread.__init__(self)
@@ -610,7 +842,6 @@ class PushSSHKeys(threading.Thread, UnixAutomation):
             self._queue.task_done()
 
     def push_ssh_keys(self, sessionobj, server):
-        self._sessionobj.setuplog('push_ssh_keys', sessionobj)
         ssh = self._sessionobj.login(server)
         if self._sessionobj.logintest(ssh) is 0:
             exit_code, results = self._sessionobj.pushsshkeys(ssh)
@@ -620,6 +851,10 @@ class PushSSHKeys(threading.Thread, UnixAutomation):
 
 
 class GetUserID(threading.Thread, UnixAutomation):
+    """
+    This class extends the base unixautomation class and then
+    allows the threading of id command function.
+    """
 
     def __init__(self, queue, sessionobj, exargs):
         threading.Thread.__init__(self)
@@ -634,7 +869,6 @@ class GetUserID(threading.Thread, UnixAutomation):
             self._queue.task_done()
 
     def get_user_id(self, sessionobj, server, user):
-        self._sessionobj.setuplog('user_id', sessionobj)
         if user is None:
             self._sessionobj.writeoutput(
                 server, 'user variable not set')
@@ -649,6 +883,10 @@ class GetUserID(threading.Thread, UnixAutomation):
 
 
 class LockUserID(threading.Thread, UnixAutomation):
+    """
+    This class extends the base unixautomation class and then
+    allows the threading of the locking user id function.
+    """
 
     def __init__(self, queue, sessionobj, exargs):
         threading.Thread.__init__(self)
@@ -663,7 +901,6 @@ class LockUserID(threading.Thread, UnixAutomation):
             self._queue.task_done()
 
     def lock_user_id(self, sessionobj, server, user):
-        self._sessionobj.setuplog('user_id', sessionobj)
         if user is None:
             self._sessionobj.writeoutput(
                 server, 'user variable not set')
@@ -678,6 +915,10 @@ class LockUserID(threading.Thread, UnixAutomation):
 
 
 class EnableSNMP(threading.Thread, UnixAutomation):
+    """
+    This class extends the base unixautomation class and then
+    allows the threading of the snmp enabling function.
+    """
 
     def __init__(self, queue, sessionobj, exargs):
         threading.Thread.__init__(self)
@@ -697,7 +938,6 @@ class EnableSNMP(threading.Thread, UnixAutomation):
             self._queue.task_done()
 
     def enable_snmp(self, sessionobj, server, snmpuser, snmppass):
-        self._sessionobj.setuplog('enable_snmp', sessionobj)
         if snmpuser is None:
             self._sessionobj.writeoutput(
                 server, 'snmp user variable not set')
@@ -713,3 +953,70 @@ class EnableSNMP(threading.Thread, UnixAutomation):
             self._sessionobj.writeoutput(server, results)
             self._sessionobj.logout(ssh)
         return
+
+
+class RunCommand(threading.Thread, UnixAutomation):
+    """
+    This class extends the base unixautomation class and then
+    allows the threading of running adhoc command function.
+    """
+
+    def __init__(self, queue, sessionobj, exargs):
+        threading.Thread.__init__(self)
+        self._queue = queue
+        self._sessionobj = sessionobj
+        self._cmd = exargs['cmd']
+
+    def run(self):
+        while True:
+            server = self._queue.get()
+            self.get_cmd_output(self._sessionobj, server, self._cmd)
+            self._queue.task_done()
+
+    def get_cmd_output(self, sessionobj, server, cmd):
+        if cmd is None:
+            self._sessionobj.writeoutput(
+                server, 'cmd variable not set')
+            return
+        ssh = self._sessionobj.login(server)
+        if self._sessionobj.logintest(ssh) is 0:
+            exit_code, results = self._sessionobj.runcommand(
+                ssh, cmd)
+            self._sessionobj.writeoutput(server, results)
+            self._sessionobj.logout(ssh)
+        return
+
+
+class GetAuthStatus(threading.Thread, UnixAutomation):
+    """
+    This class extends the base unixautomation class and then
+    allows the threading of getuname function and turns it
+    into a auth check.
+    """
+
+    def __init__(self, queue, sessionobj, exargs):
+        threading.Thread.__init__(self)
+        self._queue = queue
+        self._sessionobj = sessionobj
+
+    def run(self):
+        while True:
+            server = self._queue.get()
+            self.authstatus(self._sessionobj, server)
+            self._queue.task_done()
+
+    def authstatus(self, sessionobj, server):
+        ssh = self._sessionobj.login(server)
+        if self._sessionobj.logintest(ssh) is 0:
+            exit_code, uname = self._sessionobj.getuname(ssh)
+            if exit_code != 0:
+                self._sessionobj.writeoutput(
+                    server, {'status': 'false'})
+                self._sessionobj.logout(ssh)
+                return
+            self._sessionobj.writeoutput(server, {'status': 'true'})
+            self._sessionobj.logout(ssh)
+        return
+
+if __name__ == "__main__":
+    print "Import classes and run command in separate file."
