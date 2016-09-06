@@ -6,9 +6,11 @@ import datetime
 import paramiko
 import threading
 import subprocess
+from copy import copy
 # environment variables
 from settings import *
 
+# TODOs: add email function and nmap for security hardening
 
 class UnixAutomation:
     """
@@ -659,6 +661,7 @@ class UnixAutomation:
             tuple: (exit_code, status)
 
         """
+
         today = datetime.datetime.today().strftime('%Y-%m-%d-%s')
         exit_code, enable_command = self.runcommand(
             ssh, "svcadm enable svc:/application/management/net-snmp:default")
@@ -696,6 +699,7 @@ class UnixAutomation:
             tuple: (exit_code, status)
 
         """
+
         exit_code, uname = self.getuname(ssh)
         if exit_code != 0:
             return 1, 'command execution failed'
@@ -706,6 +710,386 @@ class UnixAutomation:
         elif uname[0] == 'SunOS':
             exit_code, results = self.enablesnmpsolaris(
                 ssh, snmpuser, snmppass)
+        else:
+            exit_code = 1
+            results = 'command execution failed'
+        return exit_code, results
+
+    def disableftplinux(self, ssh):
+        """
+        This function runs the commands that appropiate command to disable ftp
+        on linux systems.
+
+        Return:
+            tuple: (exit_code, status)
+
+        """
+
+        today = datetime.datetime.today().strftime('%Y-%m-%d-%s')
+        exit_code, release_version = self.getrelease(ssh)
+        if exit_code != 0:
+            return 1, 'command execution failed'
+        if any(
+                "Red Hat Enterprise Linux" in s for s in release_version) or any(
+                "CentOS" in s for s in release_version):
+            backup_command = "cp /etc/vsftpd/vsftpd.conf /etc/vsftpd/vsftpd.conf.%s" % today
+            exit_code, backup_command_results = self.runcommand(
+                ssh, backup_command)
+            if exit_code != 0:
+                return 1, 'command execution failed'
+            exit_code, blacklist_command_results = self.runcommand(
+                ssh, "echo 'ftp' >> /etc/vsftpd/user_list")
+            if exit_code != 0:
+                return 1, 'command execution failed'
+            exit_code, disableanon_command_results = self.runcommand(
+                ssh, "sed -i 's/.*nonymous_enable.*/anonymous_enable=NO/g' /etc/vsftpd/vsftpd.conf")
+            if exit_code != 0:
+                return 1, 'command execution failed'
+            exit_code, stop_service_command_results = self.runcommand(
+                ssh, "service vsftpd stop")
+            if exit_code != 0:
+                return 1, 'command execution failed'
+            exit_code, disable_service_command_results = self.runcommand(
+                ssh, "chkconfig vsftpd off")
+            if exit_code != 0:
+                return 1, 'command execution failed'
+            return 0, 'successful'
+        elif any("SUSE Linux Enterprise Server" in s for s in release_version):
+            backup_command = "cp /etc/vsftpd.conf /etc/vsftpd.conf.%s" % today
+            exit_code, backup_command_results = self.runcommand(
+                ssh, backup_command)
+            if exit_code != 0:
+                return 1, 'command execution failed'
+            exit_code, blacklist_command_results = self.runcommand(
+                ssh, "echo 'ftp' >> /etc/vsftpd.chroot_list")
+            if exit_code != 0:
+                return 1, 'command execution failed'
+            exit_code, disableanon_command_results = self.runcommand(
+                ssh, "sed -i 's/.*nonymous_enable.*/anonymous_enable=NO/g' /etc/vsftpd.conf")
+            if exit_code != 0:
+                return 1, 'command execution failed'
+            exit_code, stop_service_command_results = self.runcommand(
+                ssh, "service vsftpd stop")
+            if exit_code != 0:
+                return 1, 'command execution failed'
+            exit_code, disable_service_command_results = self.runcommand(
+                ssh, "chkconfig vsftpd off")
+            if exit_code != 0:
+                return 1, 'command execution failed'
+            return 0, 'successful'
+        else:
+            return 1, 'command execution failed'
+        return 0, 'successful'
+
+    def disableftpaix(self, ssh):
+        """
+        This function runs the commands that appropiate command to disable ftp
+        on aix systems.
+
+        Return:
+            tuple: (exit_code, status)
+
+        """
+
+        today = datetime.datetime.today().strftime('%Y-%m-%d-%s')
+        backup_command = "cp /etc/inetd.conf /etc/inetd.conf.old.%s" % today
+        sed_command = "sed 's/^ftp/#ftp/g' /etc/inetd.conf > /etc/inetd.conf.new.%s" % today
+        cp_command = "cp /etc/inetd.conf.new.%s /etc/inetd.conf" % today
+        exit_code, backup_command_results = self.runcommand(
+            ssh, backup_command)
+        if exit_code != 0:
+            return 1, 'command execution failed'
+        exit_code, inet_changes_command_results = self.runcommand(
+            ssh, sed_command)
+        if exit_code != 0:
+            return 1, 'command execution failed'
+        exit_code, inet_replace_command_results = self.runcommand(
+            ssh, cp_command)
+        if exit_code != 0:
+            return 1, 'command execution failed'
+        exit_code, restart_inet_command_results = self.runcommand(
+            ssh, "refresh -s inetd")
+        if exit_code != 0:
+            return 1, 'command execution failed'
+        return 0, 'successful'
+
+
+    def disableftpsolaris(self, ssh):
+        """
+        This function runs the commands that appropiate command to disable ftp
+        on solaris systems.
+
+        Return:
+            tuple: (exit_code, status)
+
+        """
+
+        exit_code, disable_command_results = self.runcommand(
+            ssh, "svcadm disable ftp")
+        if exit_code != 0:
+            return 1, 'command execution failed'
+        return 0, 'successful'
+
+    def disableftp(self, ssh):
+        """
+        This function runs the commands that appropiate command to disable ftp
+        on systems.
+
+        Return:
+            tuple: (exit_code, status)
+
+        """
+        exit_code, uname = self.getuname(ssh)
+        if exit_code != 0:
+            return 1, 'command execution failed'
+        if uname[0] == 'Linux':
+            exit_code, results = self.disableftplinux(ssh)
+        elif uname[0] == 'AIX':
+            exit_code, results = self.disableftpaix(ssh)
+        elif uname[0] == 'SunOS':
+            exit_code, results = self.disableftpsolaris(ssh)
+        else:
+            exit_code = 1
+            results = 'command execution failed'
+        return exit_code, results
+
+    def disabletelnetlinux(self, ssh):
+        """
+        This function runs the commands that appropiate command to disable telnet
+        on linux systems.
+
+        Return:
+            tuple: (exit_code, status)
+
+        """
+
+        exit_code, release_version = self.getrelease(ssh)
+        if exit_code != 0:
+            return 1, 'command execution failed'
+        if any(
+                "Red Hat Enterprise Linux" in s for s in release_version) or any(
+                "CentOS" in s for s in release_version):
+            exit_code, disableanon_command_results = self.runcommand(
+                ssh, "sed -i 's/.*disable.*/        disable = yes/g' /etc/xinetd.d/telnet")
+            if exit_code != 0:
+                return 1, 'command execution failed'
+            exit_code, stop_service_command_results = self.runcommand(
+                ssh, "service xinetd stop")
+            if exit_code != 0:
+                return 1, 'command execution failed'
+            exit_code, disable_service_command_results = self.runcommand(
+                ssh, "chkconfig telnet off")
+            if exit_code != 0:
+                return 1, 'command execution failed'
+            return 0, 'successful'
+        else:
+            return 1, 'command execution failed'
+        return 0, 'successful'
+
+    def disabletelnetaix(self, ssh):
+        """
+        This function runs the commands that appropiate command to disable telnet
+        on aix systems.
+
+        Return:
+            tuple: (exit_code, status)
+
+        """
+
+        today = datetime.datetime.today().strftime('%Y-%m-%d-%s')
+        backup_command = "cp /etc/inetd.conf /etc/inetd.conf.old.%s" % today
+        sed_command = "sed 's/^telnet/#telnet/g' /etc/inetd.conf > /etc/inetd.conf.new.%s" % today
+        cp_command = "cp /etc/inetd.conf.new.%s /etc/inetd.conf" % today
+        exit_code, backup_command_results = self.runcommand(
+            ssh, backup_command)
+        if exit_code != 0:
+            return 1, 'command execution failed'
+        exit_code, inet_changes_command_results = self.runcommand(
+            ssh, sed_command)
+        if exit_code != 0:
+            return 1, 'command execution failed'
+        exit_code, inet_replace_command_results = self.runcommand(
+            ssh, cp_command)
+        if exit_code != 0:
+            return 1, 'command execution failed'
+        exit_code, restart_inet_command_results = self.runcommand(
+            ssh, "refresh -s inetd")
+        if exit_code != 0:
+            return 1, 'command execution failed'
+        return 0, 'successful'
+
+
+    def disabletelnetsolaris(self, ssh):
+        """
+        This function runs the commands that appropiate command to disable ftp
+        on solaris systems.
+
+        Return:
+            tuple: (exit_code, status)
+
+        """
+
+        exit_code, disable_command_results = self.runcommand(
+            ssh, "svcadm disable telnet")
+        if exit_code != 0:
+            return 1, 'command execution failed'
+        return 0, 'successful'
+
+    def disabletelnet(self, ssh):
+        """
+        This function runs the commands that appropiate command to disable telnet
+        on systems.
+
+        Return:
+            tuple: (exit_code, status)
+
+        """
+        exit_code, uname = self.getuname(ssh)
+        if exit_code != 0:
+            return 1, 'command execution failed'
+        if uname[0] == 'Linux':
+            exit_code, results = self.disabletelnetlinux(ssh)
+        elif uname[0] == 'AIX':
+            exit_code, results = self.disabletelnetaix(ssh)
+        elif uname[0] == 'SunOS':
+            exit_code, results = self.disabletelnetsolaris(ssh)
+        else:
+            exit_code = 1
+            results = 'command execution failed'
+        return exit_code, results
+
+    def disablershelllinux(self, ssh):
+        """
+        This function runs the commands that appropiate command to disable rshell
+        on linux systems.
+
+        Return:
+            tuple: (exit_code, status)
+
+        """
+
+        exit_code, release_version = self.getrelease(ssh)
+        if exit_code != 0:
+            return 1, 'command execution failed'
+        if any(
+                "Red Hat Enterprise Linux" in s for s in release_version) or any(
+                "CentOS" in s for s in release_version):
+            exit_code, disablerlogin_command_results = self.runcommand(
+                ssh, "sed -i 's/.*disable.*/        disable = yes/g' /etc/xinetd.d/rlogin")
+            if exit_code != 0:
+                return 1, 'command execution failed'
+            exit_code, disablerexec_command_results = self.runcommand(
+                ssh, "sed -i 's/.*disable.*/        disable = yes/g' /etc/xinetd.d/rexec")
+            if exit_code != 0:
+                return 1, 'command execution failed'
+            exit_code, disablersh_command_results = self.runcommand(
+                ssh, "sed -i 's/.*disable.*/        disable = yes/g' /etc/xinetd.d/rsh")
+            if exit_code != 0:
+                return 1, 'command execution failed'
+            exit_code, stop_service_command_results = self.runcommand(
+                ssh, "service xinetd stop")
+            if exit_code != 0:
+                return 1, 'command execution failed'
+            exit_code, disable_rlogin_command_results = self.runcommand(
+                ssh, "chkconfig rlogin off")
+            if exit_code != 0:
+                return 1, 'command execution failed'
+            exit_code, disable_rsh_command_results = self.runcommand(
+                ssh, "chkconfig rsh off")
+            if exit_code != 0:
+                return 1, 'command execution failed'
+            exit_code, disable_rexec_command_results = self.runcommand(
+                ssh, "chkconfig rexec off")
+            if exit_code != 0:
+                return 1, 'command execution failed'
+            return 0, 'successful'
+        else:
+            return 1, 'command execution failed'
+        return 0, 'successful'
+
+    def disablershellaix(self, ssh):
+        """
+        This function runs the commands that appropiate command to disable rshell
+        on aix systems.
+
+        Return:
+            tuple: (exit_code, status)
+
+        """
+
+        today = datetime.datetime.today().strftime('%Y-%m-%d-%s')
+        backup_command = "cp /etc/inetd.conf /etc/inetd.conf.old.%s" % today
+        sed_command = "sed 's/^shell/#shell/g' /etc/inetd.conf | sed 's/^login/#login/g' | sed 's/^exec/#exec/g' | sed 's/^rquotad/#rquotad/g' | sed 's/^rexd/#rexd/g' | sed 's/^rstatd/#rstatd/g' | sed 's/^rusersd/#rusersd/g' | sed 's/^rwalld/#rwalld/g' > /etc/inetd.conf.new.%s" % today
+        cp_command = "cp /etc/inetd.conf.new.%s /etc/inetd.conf" % today
+        exit_code, backup_command_results = self.runcommand(
+            ssh, backup_command)
+        if exit_code != 0:
+            return 1, 'command execution failed'
+        exit_code, inet_changes_command_results = self.runcommand(
+            ssh, sed_command)
+        if exit_code != 0:
+            return 1, 'command execution failed'
+        exit_code, inet_replace_command_results = self.runcommand(
+            ssh, cp_command)
+        if exit_code != 0:
+            return 1, 'command execution failed'
+        exit_code, restart_inet_command_results = self.runcommand(
+            ssh, "refresh -s inetd")
+        if exit_code != 0:
+            return 1, 'command execution failed'
+        return 0, 'successful'
+
+
+    def disablershellsolaris(self, ssh):
+        """
+        This function runs the commands that appropiate command to disable ftp
+        on solaris systems.
+
+        Return:
+            tuple: (exit_code, status)
+
+        """
+
+        exit_code, disable_rlogin_results = self.runcommand(
+            ssh, "svcadm disable rlogin")
+        if exit_code != 0:
+            return 1, 'command execution failed'
+        exit_code, disable_rshell_results = self.runcommand(
+            ssh, "svcadm disable svc:/network/shell:default")
+        if exit_code != 0:
+            return 1, 'command execution failed'
+        exit_code, disable_kshell_results = self.runcommand(
+            ssh, "svcadm disable svc:/network/shell:kshell")
+        if exit_code != 0:
+            return 1, 'command execution failed'
+        exit_code, disable_rexec_results = self.runcommand(
+            ssh, "svcadm disable svc:/network/rexec:default")
+        if exit_code != 0:
+            return 1, 'command execution failed'
+        exit_code, disable_rstat_results = self.runcommand(
+            ssh, "svcadm disable svc:/network/rpc/rstat:default")
+        if exit_code != 0:
+            return 1, 'command execution failed'
+        return 0, 'successful'
+
+    def disablershell(self, ssh):
+        """
+        This function runs the commands that appropiate command to disable rshell
+        on systems.
+
+        Return:
+            tuple: (exit_code, status)
+
+        """
+        exit_code, uname = self.getuname(ssh)
+        if exit_code != 0:
+            return 1, 'command execution failed'
+        if uname[0] == 'Linux':
+            exit_code, results = self.disablershelllinux(ssh)
+        elif uname[0] == 'AIX':
+            exit_code, results = self.disablershellaix(ssh)
+        elif uname[0] == 'SunOS':
+            exit_code, results = self.disablershellsolaris(ssh)
         else:
             exit_code = 1
             results = 'command execution failed'
@@ -733,6 +1117,18 @@ class UnixAutomation:
             queue.put(server)
         queue.join()
         return self._outputfile
+
+    def convertxmltojson(r,root=True):
+        if root:
+            return {r.tag : dictify(r, False)}
+        d=copy(r.attrib)
+        if r.text:
+            d["_text"]=r.text
+        for x in r.findall("./*"):
+            if x.tag not in d:
+                d[x.tag]=[]
+            d[x.tag].append(dictify(x,False))
+        return d
 
 
 class GetHostname(threading.Thread, UnixAutomation):
