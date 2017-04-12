@@ -217,6 +217,22 @@ class UnixAutomation:
         exit_code, hostname = self.runcommand(sessionobj, "hostname")
         return exit_code, hostname
 
+    def getrpms(self, sessionobj, package=None):
+        """
+        This function runs the rpm command to get a list of packages installed 
+        and returns the exit_code and the stdout of the command as an array.
+
+        Return:
+            tuple: (exit_code, return_array)
+
+        """
+        if package is None:
+            rpmscmd = "rpm -qa"
+        else: 
+            rpmscmd = "rpm -qa | grep %s" % package
+        exit_code, rpms = self.runcommand(sessionobj, rpmscmd)
+        return exit_code, rpms
+
     def getuserid(self, sessionobj, user):
         """
         This function runs the id command on a user and returns the exit_code and
@@ -307,6 +323,24 @@ class UnixAutomation:
             sessionobj, 'restorecon -Rv ~/.ssh/')
         key_dict = {hostname[0]: added_keys}
         return 0, key_dict
+
+    def pushfile(self, sessionobj, localpath, remotepath):
+        """
+        This function runs an sftp command on the given sessionobj. It transfers
+        the files and then closes the sftp session. It then returns
+        the exit code.
+
+        Return:
+            tuple: (exit_code, status)
+
+        """
+        try: 
+            sftp = ssh.open_sftp()
+            sftp.put(localpath, remotepath)
+            sftp.close()
+            return 0, 'file transfered'
+        except:
+            return 1, 'failed transfer'
 
     def redosshkeys(self, sessionobj):
         """
